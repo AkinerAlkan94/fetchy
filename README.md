@@ -260,14 +260,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📋 Roadmap
 
-- [ ] WebSocket support
-- [ ] GraphQL support
 - [ ] Pre-request and test scripts
 - [ ] Response assertions
 - [ ] Request chaining
 - [ ] Theme customization (Light theme)
 - [ ] Request documentation/notes
-- [ ] Code generation (cURL, JavaScript, Python, etc.)
 
 ---
 
@@ -292,5 +289,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p align="center">
   Made with ❤️ for developers who care about privacy
 </p>
+
 
 
