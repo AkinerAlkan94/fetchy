@@ -164,7 +164,7 @@
 
 #### Windows Portable
 Download the portable version (no installation required):
-- 📦 [**Fetchy Portable for Windows**](./portable-binary/Fetchy-Portable.zip)
+- 📦 [**Fetchy Portable for Windows**](https://github.com/AkinerAlkan94/fetchy/releases/tag/v.1.0.0)
 
 Simply extract and run - no installation needed!
 
@@ -292,4 +292,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p align="center">
   Made with ❤️ for developers who care about privacy
 </p>
+
 
