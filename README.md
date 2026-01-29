@@ -21,6 +21,8 @@
 
 ---
 
+## [🗒️ Medium Article: Fetchy — A Reliable Offline REST Client for Modern Developers](https://medium.com/@akineralkan/fetchy-a-reliable-offline-rest-client-for-modern-developers-833046105004)
+
 ## 🔒 Privacy First - Self-Hosted & Offline
 
 **Fetchy is designed with privacy at its core.** Unlike cloud-based alternatives, Fetchy:
@@ -289,6 +291,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p align="center">
   Made with ❤️ for developers who care about privacy
 </p>
+
 
 
 
