@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Send, Save, Plus, Trash2, FileText, X, Link } from 'lucide-react';
+import { Send, Save, Plus, Trash2, FileText, X, Link, Terminal, Check, Code, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { ApiRequest, ApiResponse, HttpMethod, KeyValue } from '../types';
 import { executeRequest } from '../utils/httpClient';
-import { resolveRequestVariables } from '../utils/helpers';
+import { resolveRequestVariables, generateCurl, generateJavaScript, generatePython, generateJava, generateDotNet, generateGo, generateRust, generateCpp } from '../utils/helpers';
 import { v4 as uuidv4 } from 'uuid';
 import VariableInput from './VariableInput';
 import VariableTextarea from './VariableTextarea';
@@ -34,6 +34,8 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
   const [activeSection, setActiveSection] = useState<'params' | 'headers' | 'body' | 'auth'>('params');
   const [batchEditModal, setBatchEditModal] = useState<{ open: boolean; field: 'headers' | 'params' | null }>({ open: false, field: null });
   const [batchEditText, setBatchEditText] = useState('');
+  const [codeModal, setCodeModal] = useState<{ open: boolean; activeLanguage: string; copied: boolean }>({ open: false, activeLanguage: 'curl', copied: false });
+  const [showCodeDropdown, setShowCodeDropdown] = useState(false);
 
   // Load request data when tab changes
   useEffect(() => {
@@ -44,6 +46,51 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
       }
     }
   }, [activeTab?.requestId, activeTab?.collectionId, getRequest]);
+
+  const handleShowCode = useCallback((language: string = 'curl') => {
+    if (!request) return;
+    setCodeModal({ open: true, activeLanguage: language, copied: false });
+    setShowCodeDropdown(false);
+  }, [request]);
+
+  const getCodeForLanguage = (language: string): string => {
+    if (!request) return '';
+
+    const collection = collections.find(c => c.id === activeTab?.collectionId);
+    const environment = getActiveEnvironment();
+    const allVariables = [
+      ...(collection?.variables || []),
+      ...(environment?.variables || []),
+    ];
+
+    switch (language) {
+      case 'curl':
+        return generateCurl(request, allVariables);
+      case 'javascript':
+        return generateJavaScript(request, allVariables);
+      case 'python':
+        return generatePython(request, allVariables);
+      case 'java':
+        return generateJava(request, allVariables);
+      case 'dotnet':
+        return generateDotNet(request, allVariables);
+      case 'go':
+        return generateGo(request, allVariables);
+      case 'rust':
+        return generateRust(request, allVariables);
+      case 'cpp':
+        return generateCpp(request, allVariables);
+      default:
+        return '';
+    }
+  };
+
+  const handleCopyCode = () => {
+    const code = getCodeForLanguage(codeModal.activeLanguage);
+    navigator.clipboard.writeText(code);
+    setCodeModal({ ...codeModal, copied: true });
+    setTimeout(() => setCodeModal({ ...codeModal, copied: false }), 2000);
+  };
 
   const handleSave = useCallback(() => {
     if (request && activeTab?.collectionId) {
@@ -699,6 +746,49 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
             </>
           )}
         </button>
+
+        <div className="relative">
+          <button
+            onClick={() => setShowCodeDropdown(!showCodeDropdown)}
+            disabled={!request.url}
+            className="btn btn-secondary flex items-center gap-1.5 disabled:opacity-50 pr-2"
+            title="Generate Code"
+          >
+            <Code size={16} className="text-purple-400" />
+            <span className="font-medium">Code</span>
+            <ChevronDown size={14} className="text-aki-text-muted" />
+          </button>
+
+          {showCodeDropdown && request.url && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowCodeDropdown(false)}
+              />
+              <div className="absolute top-full right-0 mt-1 w-48 bg-aki-bg border border-aki-border rounded-lg shadow-xl z-50 py-1 max-h-[400px] overflow-y-auto">
+                {[
+                  { id: 'curl', label: 'cURL', icon: '⚡' },
+                  { id: 'javascript', label: 'JavaScript', icon: '🟨' },
+                  { id: 'python', label: 'Python', icon: '🐍' },
+                  { id: 'java', label: 'Java', icon: '☕' },
+                  { id: 'dotnet', label: '.NET Core', icon: '🔷' },
+                  { id: 'go', label: 'Go', icon: '🐹' },
+                  { id: 'rust', label: 'Rust', icon: '🦀' },
+                  { id: 'cpp', label: 'C++', icon: '⚙️' },
+                ].map((lang) => (
+                  <button
+                    key={lang.id}
+                    onClick={() => handleShowCode(lang.id)}
+                    className="w-full px-4 py-2 text-left text-sm text-aki-text hover:bg-aki-border transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-base">{lang.icon}</span>
+                    <span>{lang.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Section tabs with Save button */}
@@ -785,6 +875,92 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
                 className="btn btn-primary"
               >
                 Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Code Generation Modal */}
+      {codeModal.open && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-aki-bg border border-aki-border rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-aki-border">
+              <h2 className="text-lg font-semibold text-aki-text flex items-center gap-2">
+                <Terminal size={20} className="text-aki-accent" />
+                Code Generation
+              </h2>
+              <button
+                onClick={() => setCodeModal({ open: false, activeLanguage: 'curl', copied: false })}
+                className="text-aki-text-muted hover:text-aki-text transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Language Tabs */}
+            <div className="flex border-b border-aki-border overflow-x-auto">
+              {[
+                { id: 'curl', label: 'cURL' },
+                { id: 'javascript', label: 'JavaScript' },
+                { id: 'python', label: 'Python' },
+                { id: 'java', label: 'Java' },
+                { id: 'dotnet', label: '.NET Core' },
+                { id: 'go', label: 'Go' },
+                { id: 'rust', label: 'Rust' },
+                { id: 'cpp', label: 'C++' },
+              ].map((lang) => (
+                <button
+                  key={lang.id}
+                  onClick={() => setCodeModal({ ...codeModal, activeLanguage: lang.id, copied: false })}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    codeModal.activeLanguage === lang.id
+                      ? 'border-aki-accent text-aki-accent'
+                      : 'border-transparent text-aki-text-muted hover:text-aki-text'
+                  }`}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4 flex-1 overflow-hidden flex flex-col">
+              <p className="text-sm text-aki-text-muted mb-3">
+                {codeModal.activeLanguage === 'curl' && 'Copy and paste this cURL command into your terminal'}
+                {codeModal.activeLanguage === 'javascript' && 'JavaScript code using native fetch API'}
+                {codeModal.activeLanguage === 'python' && 'Python code using requests library (pip install requests)'}
+                {codeModal.activeLanguage === 'java' && 'Java code using HttpClient (Java 11+)'}
+                {codeModal.activeLanguage === 'dotnet' && '.NET Core code using HttpClient'}
+                {codeModal.activeLanguage === 'go' && 'Go code using net/http package'}
+                {codeModal.activeLanguage === 'rust' && 'Rust code using reqwest crate (cargo add reqwest tokio)'}
+                {codeModal.activeLanguage === 'cpp' && 'C++ code using libcurl (requires libcurl library)'}
+              </p>
+              <div className="flex-1 bg-[#282c34] border border-aki-border rounded p-4 overflow-auto">
+                <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap break-all">
+                  {getCodeForLanguage(codeModal.activeLanguage)}
+                </pre>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-aki-border">
+              <button
+                onClick={() => setCodeModal({ open: false, activeLanguage: 'curl', copied: false })}
+                className="btn btn-secondary"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleCopyCode}
+                className="btn btn-primary flex items-center gap-2"
+              >
+                {codeModal.copied ? (
+                  <>
+                    <Check size={16} /> Copied!
+                  </>
+                ) : (
+                  <>
+                    <FileText size={16} /> Copy to Clipboard
+                  </>
+                )}
               </button>
             </div>
           </div>
