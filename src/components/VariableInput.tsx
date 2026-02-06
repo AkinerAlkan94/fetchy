@@ -13,8 +13,16 @@ interface VariableInputProps {
 
 export default function VariableInput({ value, onChange, placeholder, className, type = 'text' }: VariableInputProps) {
   const [tooltip, setTooltip] = useState<{ variableName: string; position: { x: number; y: number } } | null>(null);
+  const [scrollLeft, setScrollLeft] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const { getActiveEnvironment } = useAppStore();
+
+  // Sync scroll position between input and overlay
+  const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
+    const scrollPos = e.currentTarget.scrollLeft;
+    setScrollLeft(scrollPos);
+  };
 
   // Find variable at cursor position or clicked position
   const findVariableAtPosition = useCallback((text: string, cursorPos: number): string | null => {
@@ -129,6 +137,7 @@ export default function VariableInput({ value, onChange, placeholder, className,
         onChange={(e) => onChange(e.target.value)}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
+        onScroll={handleScroll}
         placeholder={placeholder}
         className={`${className} ${isFlexItem ? 'w-full' : ''}`}
         style={hasVariables ? { color: 'transparent', caretColor: 'white' } : undefined}
@@ -144,7 +153,14 @@ export default function VariableInput({ value, onChange, placeholder, className,
             overflow: 'hidden',
           }}
         >
-          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
+          <div 
+            ref={overlayRef}
+            style={{ 
+              whiteSpace: 'nowrap', 
+              width: '100%',
+              transform: `translateX(-${scrollLeft}px)`
+            }}
+          >
             {getHighlightedValue()}
           </div>
         </div>

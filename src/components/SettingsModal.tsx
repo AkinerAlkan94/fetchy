@@ -10,7 +10,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { preferences, isElectron, savePreferences, selectHomeDirectory, setHomeDirectory, getHomeDirectory } = usePreferencesStore();
-  const { exportFullStorage, importFullStorage } = useAppStore();
+  const { exportFullStorage, importFullStorage, panelLayout, setPanelLayout } = useAppStore();
 
   const [currentHomeDir, setCurrentHomeDir] = useState<string>('');
   const [newHomeDir, setNewHomeDir] = useState<string>('');
@@ -313,6 +313,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   onChange={(e) => savePreferences({ maxHistoryItems: parseInt(e.target.value) || 100 })}
                   className="w-20 px-2 py-1 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm focus:outline-none focus:border-purple-500"
                 />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm text-gray-300">Panel Layout</label>
+                  <p className="text-xs text-gray-500">Position of response panel relative to request</p>
+                </div>
+                <select
+                  value={panelLayout}
+                  onChange={(e) => setPanelLayout(e.target.value as 'horizontal' | 'vertical')}
+                  className="px-3 py-1 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm focus:outline-none focus:border-purple-500"
+                >
+                  <option value="horizontal">Right</option>
+                  <option value="vertical">Down</option>
+                </select>
               </div>
             </div>
           </div>

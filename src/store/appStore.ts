@@ -154,6 +154,7 @@ interface AppStore {
 
   // Panel layout
   panelLayout: 'horizontal' | 'vertical';
+  setPanelLayout: (layout: 'horizontal' | 'vertical') => void;
   togglePanelLayout: () => void;
 
   // Import/Export
@@ -974,6 +975,12 @@ export const useAppStore = create<AppStore>()(
 
       // Panel layout
       panelLayout: 'horizontal',
+
+      setPanelLayout: (layout: 'horizontal' | 'vertical') => {
+        set(state => {
+          state.panelLayout = layout;
+        });
+      },
 
       togglePanelLayout: () => {
         set(state => {
