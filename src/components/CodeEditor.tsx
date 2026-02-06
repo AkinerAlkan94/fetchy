@@ -3,6 +3,7 @@ import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { lineNumbers } from '@codemirror/view';
 
 interface CodeEditorProps {
   value: string;
@@ -20,6 +21,7 @@ export default function CodeEditor({ value, onChange, language = 'json', readOnl
 
     const extensions = [
       basicSetup,
+      EditorView.lineWrapping,
       oneDark,
       EditorView.theme({
         '&': { height: '100%' },
