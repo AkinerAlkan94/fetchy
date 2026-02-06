@@ -32,24 +32,45 @@ const parsePostmanUrl = (url: PostmanUrl | string): { url: string; params: KeyVa
   return { url: url.raw, params };
 };
 
+// Helper to get value from Postman auth field (handles both array and object formats)
+const getPostmanAuthValue = (
+  authField: Array<{ key: string; value: string }> | Record<string, string> | undefined,
+  key: string
+): string => {
+  if (!authField) return '';
+
+  // If it's an array, use find
+  if (Array.isArray(authField)) {
+    return authField.find(b => b.key === key)?.value || '';
+  }
+
+  // If it's an object, access directly
+  if (typeof authField === 'object') {
+    return (authField as Record<string, string>)[key] || '';
+  }
+
+  return '';
+};
+
 // Helper to convert Postman auth
 const convertPostmanAuth = (auth?: PostmanRequest['auth']): ApiRequest['auth'] => {
   if (!auth) return { type: 'none' };
 
   switch (auth.type) {
     case 'basic': {
-      const username = auth.basic?.find(b => b.key === 'username')?.value || '';
-      const password = auth.basic?.find(b => b.key === 'password')?.value || '';
+      const username = getPostmanAuthValue(auth.basic, 'username');
+      const password = getPostmanAuthValue(auth.basic, 'password');
       return { type: 'basic', basic: { username, password } };
     }
     case 'bearer': {
-      const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
+      const token = getPostmanAuthValue(auth.bearer, 'token');
       return { type: 'bearer', bearer: { token } };
     }
     case 'apikey': {
-      const key = auth.apikey?.find(b => b.key === 'key')?.value || '';
-      const value = auth.apikey?.find(b => b.key === 'value')?.value || '';
-      const addTo = auth.apikey?.find(b => b.key === 'in')?.value === 'query' ? 'query' : 'header';
+      const key = getPostmanAuthValue(auth.apikey, 'key');
+      const value = getPostmanAuthValue(auth.apikey, 'value');
+      const inValue = getPostmanAuthValue(auth.apikey, 'in');
+      const addTo = inValue === 'query' ? 'query' : 'header';
       return { type: 'api-key', apiKey: { key, value, addTo } };
     }
     default:

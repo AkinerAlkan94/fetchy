@@ -197,9 +197,9 @@ export interface PostmanVariable {
 
 export interface PostmanAuth {
   type: string;
-  basic?: Array<{ key: string; value: string }>;
-  bearer?: Array<{ key: string; value: string }>;
-  apikey?: Array<{ key: string; value: string }>;
+  basic?: Array<{ key: string; value: string }> | Record<string, string>;
+  bearer?: Array<{ key: string; value: string }> | Record<string, string>;
+  apikey?: Array<{ key: string; value: string }> | Record<string, string>;
 }
 
 // App state types
