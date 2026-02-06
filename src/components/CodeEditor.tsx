@@ -4,6 +4,7 @@ import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { lineNumbers } from '@codemirror/view';
+import { usePreferencesStore } from '../store/preferencesStore';
 
 interface CodeEditorProps {
   value: string;
@@ -15,6 +16,8 @@ interface CodeEditorProps {
 export default function CodeEditor({ value, onChange, language = 'json', readOnly = false }: CodeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const { preferences } = usePreferencesStore();
+  const isDark = preferences.theme === 'dark';
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -22,7 +25,7 @@ export default function CodeEditor({ value, onChange, language = 'json', readOnl
     const extensions = [
       basicSetup,
       EditorView.lineWrapping,
-      oneDark,
+      ...(isDark ? [oneDark] : []),
       EditorView.theme({
         '&': { height: '100%' },
         '.cm-scroller': { overflow: 'auto' },
@@ -58,7 +61,7 @@ export default function CodeEditor({ value, onChange, language = 'json', readOnl
     return () => {
       view.destroy();
     };
-  }, [language, readOnly]);
+  }, [language, readOnly, isDark]);
 
   // Update content when value changes externally
   useEffect(() => {
