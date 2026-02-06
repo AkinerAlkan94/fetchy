@@ -18,23 +18,20 @@ export const executeRequest = async ({
 }: ExecuteRequestOptions): Promise<ApiResponse> => {
   const startTime = performance.now();
 
-  // Combine variables
-  const allVariables = [...collectionVariables, ...environmentVariables];
-
   // Determine effective auth (use inherited if type is 'inherit')
   const effectiveAuth = request.auth.type === 'inherit' && inheritedAuth
     ? inheritedAuth
     : request.auth;
 
-  // Process URL with variables
-  let url = replaceVariables(request.url, allVariables, []);
+  // Process URL with variables (env vars take precedence over collection vars)
+  let url = replaceVariables(request.url, collectionVariables, environmentVariables);
 
   // Add query parameters
   const enabledParams = request.params.filter(p => p.enabled && p.key);
   if (enabledParams.length > 0) {
     const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
     enabledParams.forEach(p => {
-      const value = replaceVariables(p.value, allVariables, []);
+      const value = replaceVariables(p.value, collectionVariables, environmentVariables);
       urlObj.searchParams.append(p.key, value);
     });
     url = urlObj.toString();
@@ -43,8 +40,8 @@ export const executeRequest = async ({
   // Add API key to query if configured
   if (effectiveAuth.type === 'api-key' && effectiveAuth.apiKey?.addTo === 'query') {
     const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
-    const key = replaceVariables(effectiveAuth.apiKey.key, allVariables, []);
-    const value = replaceVariables(effectiveAuth.apiKey.value, allVariables, []);
+    const key = replaceVariables(effectiveAuth.apiKey.key, collectionVariables, environmentVariables);
+    const value = replaceVariables(effectiveAuth.apiKey.value, collectionVariables, environmentVariables);
     // Only add query parameter if both key and value are not empty
     if (key && key.trim() && value && value.trim()) {
       urlObj.searchParams.append(key, value);
@@ -58,7 +55,7 @@ export const executeRequest = async ({
   // Add request headers
   for (const header of request.headers) {
     if (header.enabled && header.key && header.key.trim()) {
-      const headerValue = replaceVariables(header.value, allVariables, []);
+      const headerValue = replaceVariables(header.value, collectionVariables, environmentVariables);
       // Allow empty values for headers (some headers can be empty), but trim the key
       headers[header.key.trim()] = headerValue;
     }
@@ -66,7 +63,7 @@ export const executeRequest = async ({
 
   // Add auth headers
   if (effectiveAuth.type === 'bearer' && effectiveAuth.bearer) {
-    const token = replaceVariables(effectiveAuth.bearer.token, allVariables, []);
+    const token = replaceVariables(effectiveAuth.bearer.token, collectionVariables, environmentVariables);
     console.log('[HTTP Client] Bearer token after variable replacement:', token ? `"${token}"` : '<empty>');
     // Only add Authorization header if token is not empty
     if (token && token.trim()) {
@@ -76,8 +73,8 @@ export const executeRequest = async ({
       console.warn('[HTTP Client] Bearer token is empty or whitespace only, skipping Authorization header');
     }
   } else if (effectiveAuth.type === 'basic' && effectiveAuth.basic) {
-    const username = replaceVariables(effectiveAuth.basic.username, allVariables, []);
-    const password = replaceVariables(effectiveAuth.basic.password, allVariables, []);
+    const username = replaceVariables(effectiveAuth.basic.username, collectionVariables, environmentVariables);
+    const password = replaceVariables(effectiveAuth.basic.password, collectionVariables, environmentVariables);
     console.log('[HTTP Client] Basic auth username after variable replacement:', username ? `"${username}"` : '<empty>');
     // Only add Authorization header if username is not empty
     if (username && username.trim()) {
@@ -88,8 +85,8 @@ export const executeRequest = async ({
       console.warn('[HTTP Client] Basic auth username is empty, skipping Authorization header');
     }
   } else if (effectiveAuth.type === 'api-key' && effectiveAuth.apiKey?.addTo === 'header') {
-    const key = replaceVariables(effectiveAuth.apiKey.key, allVariables, []);
-    const value = replaceVariables(effectiveAuth.apiKey.value, allVariables, []);
+    const key = replaceVariables(effectiveAuth.apiKey.key, collectionVariables, environmentVariables);
+    const value = replaceVariables(effectiveAuth.apiKey.value, collectionVariables, environmentVariables);
     console.log('[HTTP Client] API Key header:', key ? `"${key}"` : '<empty>', '=', value ? `"${value}"` : '<empty>');
     // Only add header if both key and value are not empty
     if (key && key.trim() && value && value.trim()) {
@@ -107,17 +104,17 @@ export const executeRequest = async ({
     switch (request.body.type) {
       case 'json':
         headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-        body = replaceVariables(request.body.raw || '', allVariables, []);
+        body = replaceVariables(request.body.raw || '', collectionVariables, environmentVariables);
         break;
       case 'raw':
-        body = replaceVariables(request.body.raw || '', allVariables, []);
+        body = replaceVariables(request.body.raw || '', collectionVariables, environmentVariables);
         break;
       case 'x-www-form-urlencoded': {
         headers['Content-Type'] = headers['Content-Type'] || 'application/x-www-form-urlencoded';
         const params = new URLSearchParams();
         for (const item of request.body.urlencoded || []) {
           if (item.enabled && item.key) {
-            params.append(item.key, replaceVariables(item.value, allVariables, []));
+            params.append(item.key, replaceVariables(item.value, collectionVariables, environmentVariables));
           }
         }
         body = params.toString();
@@ -127,7 +124,7 @@ export const executeRequest = async ({
         const formData = new FormData();
         for (const item of request.body.formData || []) {
           if (item.enabled && item.key) {
-            formData.append(item.key, replaceVariables(item.value, allVariables, []));
+            formData.append(item.key, replaceVariables(item.value, collectionVariables, environmentVariables));
           }
         }
         body = formData;

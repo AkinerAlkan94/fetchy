@@ -39,7 +39,7 @@ function App() {
     panelLayout,
     togglePanelLayout,
   } = useAppStore();
-  const { loadPreferences } = usePreferencesStore();
+  const { loadPreferences, preferences } = usePreferencesStore();
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [sentRequest, setSentRequest] = useState<ApiRequest | null>(null);
   const [isLoading, setIsLoading] = useState(false);

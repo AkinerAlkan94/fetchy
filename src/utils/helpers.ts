@@ -484,13 +484,27 @@ export const replaceVariables = (
   let result = text;
 
   // Combine all variables, env variables take precedence
-  const allVariables = [...variables, ...envVariables];
+  // Build a map where later values (env vars) override earlier ones (collection vars)
+  const variableMap = new Map<string, string>();
 
-  for (const variable of allVariables) {
+  // Add collection variables first
+  for (const variable of variables) {
     if (variable.enabled) {
-      const regex = new RegExp(`<<${variable.key}>>`, 'g');
-      result = result.replace(regex, variable.value);
+      variableMap.set(variable.key, variable.value);
     }
+  }
+
+  // Add environment variables (will override collection vars with same key)
+  for (const envVar of envVariables) {
+    if (envVar.enabled) {
+      variableMap.set(envVar.key, envVar.value);
+    }
+  }
+
+  // Now replace all variables
+  for (const [key, value] of variableMap) {
+    const regex = new RegExp(`<<${key}>>`, 'g');
+    result = result.replace(regex, value);
   }
 
   return result;
