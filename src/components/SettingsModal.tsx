@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { X, FolderOpen, RefreshCw, Check, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, FolderOpen, RefreshCw, Check, AlertCircle, Download, Upload, AlertTriangle } from 'lucide-react';
 import { usePreferencesStore } from '../store/preferencesStore';
+import { useAppStore, AppStorageExport } from '../store/appStore';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { preferences, isElectron, savePreferences, selectHomeDirectory, setHomeDirectory, getHomeDirectory } = usePreferencesStore();
+  const { exportFullStorage, importFullStorage } = useAppStore();
 
   const [currentHomeDir, setCurrentHomeDir] = useState<string>('');
   const [newHomeDir, setNewHomeDir] = useState<string>('');
@@ -16,6 +18,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Data backup/restore state
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState<AppStorageExport | null>(null);
+  const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [importMessage, setImportMessage] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -66,6 +75,80 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleExportStorage = () => {
+    const data = exportFullStorage();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fetchy-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string) as AppStorageExport;
+
+        // Validate the imported data structure
+        if (!data.collections && !data.environments && !data.history) {
+          setImportStatus('error');
+          setImportMessage('Invalid backup file: missing required data fields');
+          return;
+        }
+
+        setPendingImportData(data);
+        setShowImportConfirm(true);
+        setImportStatus('idle');
+        setImportMessage('');
+      } catch {
+        setImportStatus('error');
+        setImportMessage('Invalid JSON file');
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset the input so the same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleConfirmImport = () => {
+    if (!pendingImportData) return;
+
+    try {
+      importFullStorage(pendingImportData);
+      setImportStatus('success');
+      setImportMessage('Data imported successfully. The application will reload.');
+      setShowImportConfirm(false);
+      setPendingImportData(null);
+
+      // Reload after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch {
+      setImportStatus('error');
+      setImportMessage('Failed to import data');
+    }
+  };
+
+  const handleCancelImport = () => {
+    setShowImportConfirm(false);
+    setPendingImportData(null);
   };
 
   if (!isOpen) return null;
@@ -233,7 +316,113 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </div>
             </div>
           </div>
+
+          {/* Divider */}
+          <div className="border-t border-[#2d2d44]" />
+
+          {/* Data Backup/Restore Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-white uppercase tracking-wider">
+              Data Backup & Restore
+            </h3>
+
+            <p className="text-xs text-gray-500">
+              Export all your collections, environments, and request history as a single JSON file,
+              or restore from a previously exported backup.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportStorage}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+              >
+                <Download size={16} />
+                Export All Data
+              </button>
+
+              <button
+                onClick={handleImportClick}
+                className="flex items-center gap-2 px-4 py-2 bg-[#2d2d44] text-gray-300 rounded hover:bg-[#3d3d54] transition-colors"
+              >
+                <Upload size={16} />
+                Import Backup
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
+
+            {importStatus === 'success' && (
+              <div className="flex items-center gap-2 text-green-400 text-sm">
+                <Check size={16} />
+                {importMessage}
+              </div>
+            )}
+
+            {importStatus === 'error' && (
+              <div className="flex items-center gap-2 text-red-400 text-sm">
+                <AlertCircle size={16} />
+                {importMessage}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Import Confirmation Modal */}
+        {showImportConfirm && (
+          <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10 rounded-lg">
+            <div className="bg-[#1a1a2e] rounded-lg shadow-xl w-[450px] border border-[#2d2d44] p-6 m-4">
+              <div className="flex items-start gap-4">
+                <div className="p-2 bg-yellow-500/20 rounded-full">
+                  <AlertTriangle size={24} className="text-yellow-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-white mb-2">
+                    Confirm Import
+                  </h3>
+                  <p className="text-sm text-gray-300 mb-4">
+                    This will <span className="text-yellow-400 font-semibold">overwrite all your existing data</span>, including:
+                  </p>
+                  <ul className="text-sm text-gray-400 list-disc list-inside mb-4 space-y-1">
+                    <li>All collections and requests</li>
+                    <li>All environments and variables</li>
+                    <li>Request history</li>
+                  </ul>
+                  {pendingImportData && (
+                    <div className="text-xs text-gray-500 bg-[#0f0f1a] p-3 rounded mb-4">
+                      <div>Backup date: {new Date(pendingImportData.exportedAt).toLocaleString()}</div>
+                      <div>Collections: {pendingImportData.collections?.length || 0}</div>
+                      <div>Environments: {pendingImportData.environments?.length || 0}</div>
+                      <div>History items: {pendingImportData.history?.length || 0}</div>
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-400">
+                    This action cannot be undone. Are you sure you want to continue?
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={handleCancelImport}
+                  className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmImport}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
+                >
+                  Yes, Import and Overwrite
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex justify-end gap-2 p-4 border-t border-[#2d2d44]">

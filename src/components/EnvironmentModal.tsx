@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { X, Plus, Trash2, Check, Edit2, Lock, Unlock } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Plus, Trash2, Check, Edit2, Lock, Unlock, Download, Upload, Copy } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
-import { KeyValue } from '../types';
+import { KeyValue, Environment } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface EnvironmentModalProps {
@@ -16,6 +16,8 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
     updateEnvironment,
     deleteEnvironment,
     setActiveEnvironment,
+    duplicateEnvironment,
+    importEnvironment,
   } = useAppStore();
 
   const [selectedEnvId, setSelectedEnvId] = useState<string | null>(
@@ -23,6 +25,9 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
   );
   const [editingName, setEditingName] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedEnv = environments.find(e => e.id === selectedEnvId);
 
@@ -31,6 +36,95 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
     setSelectedEnvId(env.id);
     setEditingName(env.id);
     setNewName(env.name);
+  };
+
+  const handleDuplicateEnvironment = (envId: string) => {
+    const duplicated = duplicateEnvironment(envId);
+    if (duplicated) {
+      setSelectedEnvId(duplicated.id);
+    }
+  };
+
+  const handleExportEnvironment = (env: Environment) => {
+    const exportData = {
+      _type: 'environment',
+      name: env.name,
+      variables: env.variables.map(v => ({
+        key: v.key,
+        value: v.value,
+        enabled: v.enabled,
+        isSecret: v.isSecret,
+        description: v.description,
+      })),
+    };
+
+    const content = JSON.stringify(exportData, null, 2);
+    const filename = `${env.name.replace(/\s+/g, '_')}.environment.json`;
+
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+    setImportSuccess(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const data = JSON.parse(content);
+
+        // Validate the imported data
+        if (data._type !== 'environment' || !data.name || !Array.isArray(data.variables)) {
+          throw new Error('Invalid environment file format');
+        }
+
+        const imported = importEnvironment({
+          id: '', // Will be replaced by importEnvironment
+          name: data.name,
+          variables: data.variables.map((v: any) => ({
+            id: uuidv4(),
+            key: v.key || '',
+            value: v.value || '',
+            enabled: v.enabled !== false,
+            isSecret: v.isSecret || false,
+            description: v.description || '',
+          })),
+        });
+
+        setSelectedEnvId(imported.id);
+        setImportSuccess(`Successfully imported "${imported.name}"`);
+        setTimeout(() => setImportSuccess(null), 3000);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : 'Failed to import environment');
+        setTimeout(() => setImportError(null), 5000);
+      }
+    };
+    reader.onerror = () => {
+      setImportError('Failed to read file');
+      setTimeout(() => setImportError(null), 5000);
+    };
+    reader.readAsText(file);
+
+    // Reset the input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSaveName = (envId: string) => {
@@ -81,16 +175,45 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
 
         {/* Content */}
         <div className="flex-1 flex overflow-hidden">
+          {/* Hidden file input for import */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept=".json"
+            className="hidden"
+          />
+
           {/* Environments list */}
           <div className="w-64 border-r border-aki-border flex flex-col bg-aki-sidebar">
-            <div className="p-3 border-b border-aki-border">
+            <div className="p-3 border-b border-aki-border space-y-2">
               <button
                 onClick={handleAddEnvironment}
                 className="btn btn-primary w-full flex items-center justify-center gap-2 text-sm"
               >
                 <Plus size={16} /> Add Environment
               </button>
+              <button
+                onClick={handleImportClick}
+                className="btn btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+              >
+                <Upload size={16} /> Import
+              </button>
             </div>
+
+            {/* Import success/error messages */}
+            {importSuccess && (
+              <div className="mx-2 mt-2 p-2 bg-green-500/10 border border-green-500/30 rounded text-green-400 text-xs flex items-center gap-1">
+                <Check size={14} />
+                <span className="truncate">{importSuccess}</span>
+              </div>
+            )}
+            {importError && (
+              <div className="mx-2 mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs">
+                {importError}
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-2">
               {environments.length === 0 ? (
                 <p className="text-center text-aki-text-muted text-sm py-8">
@@ -134,8 +257,29 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                         setEditingName(env.id);
                         setNewName(env.name);
                       }}
+                      title="Rename"
                     >
                       <Edit2 size={12} />
+                    </button>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDuplicateEnvironment(env.id);
+                      }}
+                      title="Duplicate"
+                    >
+                      <Copy size={12} />
+                    </button>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExportEnvironment(env);
+                      }}
+                      title="Export"
+                    >
+                      <Download size={12} />
                     </button>
                     <button
                       className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded text-red-400"
@@ -146,6 +290,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                           setSelectedEnvId(environments[0]?.id || null);
                         }
                       }}
+                      title="Delete"
                     >
                       <Trash2 size={12} />
                     </button>
@@ -167,6 +312,22 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDuplicateEnvironment(selectedEnv.id)}
+                      className="btn btn-secondary text-sm flex items-center gap-2"
+                      title="Duplicate environment"
+                    >
+                      <Copy size={14} />
+                      Duplicate
+                    </button>
+                    <button
+                      onClick={() => handleExportEnvironment(selectedEnv)}
+                      className="btn btn-secondary text-sm flex items-center gap-2"
+                      title="Export environment"
+                    >
+                      <Download size={14} />
+                      Export
+                    </button>
                     {activeEnvironmentId === selectedEnv.id ? (
                       <button
                         onClick={() => setActiveEnvironment(null)}

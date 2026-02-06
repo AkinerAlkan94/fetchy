@@ -45,8 +45,11 @@ export const executeRequest = async ({
     const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
     const key = replaceVariables(effectiveAuth.apiKey.key, allVariables, []);
     const value = replaceVariables(effectiveAuth.apiKey.value, allVariables, []);
-    urlObj.searchParams.append(key, value);
-    url = urlObj.toString();
+    // Only add query parameter if both key and value are not empty
+    if (key && key.trim() && value && value.trim()) {
+      urlObj.searchParams.append(key, value);
+      url = urlObj.toString();
+    }
   }
 
   // Build headers
@@ -54,24 +57,47 @@ export const executeRequest = async ({
 
   // Add request headers
   for (const header of request.headers) {
-    if (header.enabled && header.key) {
-      headers[header.key] = replaceVariables(header.value, allVariables, []);
+    if (header.enabled && header.key && header.key.trim()) {
+      const headerValue = replaceVariables(header.value, allVariables, []);
+      // Allow empty values for headers (some headers can be empty), but trim the key
+      headers[header.key.trim()] = headerValue;
     }
   }
 
   // Add auth headers
   if (effectiveAuth.type === 'bearer' && effectiveAuth.bearer) {
     const token = replaceVariables(effectiveAuth.bearer.token, allVariables, []);
-    headers['Authorization'] = `Bearer ${token}`;
+    console.log('[HTTP Client] Bearer token after variable replacement:', token ? `"${token}"` : '<empty>');
+    // Only add Authorization header if token is not empty
+    if (token && token.trim()) {
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log('[HTTP Client] Authorization header set:', headers['Authorization']);
+    } else {
+      console.warn('[HTTP Client] Bearer token is empty or whitespace only, skipping Authorization header');
+    }
   } else if (effectiveAuth.type === 'basic' && effectiveAuth.basic) {
     const username = replaceVariables(effectiveAuth.basic.username, allVariables, []);
     const password = replaceVariables(effectiveAuth.basic.password, allVariables, []);
-    const credentials = btoa(`${username}:${password}`);
-    headers['Authorization'] = `Basic ${credentials}`;
+    console.log('[HTTP Client] Basic auth username after variable replacement:', username ? `"${username}"` : '<empty>');
+    // Only add Authorization header if username is not empty
+    if (username && username.trim()) {
+      const credentials = btoa(`${username}:${password}`);
+      headers['Authorization'] = `Basic ${credentials}`;
+      console.log('[HTTP Client] Authorization header set for Basic auth');
+    } else {
+      console.warn('[HTTP Client] Basic auth username is empty, skipping Authorization header');
+    }
   } else if (effectiveAuth.type === 'api-key' && effectiveAuth.apiKey?.addTo === 'header') {
     const key = replaceVariables(effectiveAuth.apiKey.key, allVariables, []);
     const value = replaceVariables(effectiveAuth.apiKey.value, allVariables, []);
-    headers[key] = value;
+    console.log('[HTTP Client] API Key header:', key ? `"${key}"` : '<empty>', '=', value ? `"${value}"` : '<empty>');
+    // Only add header if both key and value are not empty
+    if (key && key.trim() && value && value.trim()) {
+      headers[key] = value;
+      console.log('[HTTP Client] API Key header added');
+    } else {
+      console.warn('[HTTP Client] API Key header key or value is empty, skipping');
+    }
   }
 
   // Build body
@@ -126,6 +152,12 @@ export const executeRequest = async ({
     }
 
     // Fallback to fetch for web or when FormData is used
+    console.log('[HTTP Client] Using fetch API in browser mode');
+    console.log('[HTTP Client] Request URL:', url);
+    console.log('[HTTP Client] Request Method:', request.method);
+    console.log('[HTTP Client] Request Headers:', JSON.stringify(headers, null, 2));
+    console.log('[HTTP Client] Has Authorization header:', 'Authorization' in headers);
+
     const response = await fetch(url, {
       method: request.method,
       headers,

@@ -15,6 +15,16 @@ import {
 // Check if running in Electron
 const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
+// Full storage export interface
+export interface AppStorageExport {
+  version: string;
+  exportedAt: string;
+  collections: Collection[];
+  environments: Environment[];
+  activeEnvironmentId: string | null;
+  history: RequestHistoryItem[];
+}
+
 // Custom storage that uses Electron API when available
 const createCustomStorage = (): StateStorage => {
   // For Electron environment, use file-based storage
@@ -112,6 +122,8 @@ interface AppStore {
   deleteEnvironment: (id: string) => void;
   setActiveEnvironment: (id: string | null) => void;
   getActiveEnvironment: () => Environment | null;
+  duplicateEnvironment: (id: string) => Environment | null;
+  importEnvironment: (environment: Environment) => Environment;
 
   // Tabs
   tabs: TabState[];
@@ -143,6 +155,10 @@ interface AppStore {
   // Import/Export
   importCollection: (collection: Collection) => void;
   exportCollection: (id: string) => Collection | null;
+
+  // Full app storage export/import
+  exportFullStorage: () => AppStorageExport;
+  importFullStorage: (data: AppStorageExport) => void;
 
   // Toggle collection expanded
   toggleCollectionExpanded: (id: string) => void;
@@ -804,6 +820,44 @@ export const useAppStore = create<AppStore>()(
         return state.environments.find(e => e.id === state.activeEnvironmentId) || null;
       },
 
+      duplicateEnvironment: (id: string) => {
+        const state = get();
+        const original = state.environments.find(e => e.id === id);
+        if (!original) return null;
+
+        const duplicated: Environment = {
+          id: uuidv4(),
+          name: `${original.name} (Copy)`,
+          variables: original.variables.map(v => ({
+            ...v,
+            id: uuidv4(),
+          })),
+        };
+
+        set(state => {
+          state.environments.push(duplicated);
+        });
+
+        return duplicated;
+      },
+
+      importEnvironment: (environment: Environment) => {
+        const imported: Environment = {
+          ...environment,
+          id: uuidv4(),
+          variables: environment.variables.map(v => ({
+            ...v,
+            id: uuidv4(),
+          })),
+        };
+
+        set(state => {
+          state.environments.push(imported);
+        });
+
+        return imported;
+      },
+
       // Tabs
       tabs: [],
       activeTabId: null,
@@ -929,6 +983,40 @@ export const useAppStore = create<AppStore>()(
       exportCollection: (id: string) => {
         const state = get();
         return state.collections.find(c => c.id === id) || null;
+      },
+
+      // Full app storage export/import
+      exportFullStorage: () => {
+        const state = get();
+        return {
+          version: '1.0',
+          exportedAt: new Date().toISOString(),
+          collections: state.collections,
+          environments: state.environments,
+          activeEnvironmentId: state.activeEnvironmentId,
+          history: state.history,
+        };
+      },
+
+      importFullStorage: (data: AppStorageExport) => {
+        set(state => {
+          if (data.collections) {
+            state.collections = data.collections;
+          }
+          if (data.environments) {
+            state.environments = data.environments;
+          }
+          if (data.activeEnvironmentId !== undefined) {
+            state.activeEnvironmentId = data.activeEnvironmentId;
+          }
+          if (data.history) {
+            state.history = data.history;
+          }
+          // Close all tabs when importing full storage
+          state.tabs = [];
+          state.activeTabId = null;
+          state.activeRequest = null;
+        });
       },
     })),
     {
