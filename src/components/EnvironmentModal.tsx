@@ -1,11 +1,241 @@
 import { useState, useRef } from 'react';
-import { X, Plus, Trash2, Check, Edit2, Lock, Unlock, Download, Upload, Copy } from 'lucide-react';
+import { X, Plus, Trash2, Check, Edit2, Lock, Unlock, Download, Upload, Copy, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '../store/appStore';
 import { KeyValue, Environment } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface EnvironmentModalProps {
   onClose: () => void;
+}
+
+// Sortable Environment Item
+function SortableEnvironmentItem({
+  env,
+  isSelected,
+  isActive,
+  isEditing,
+  newName,
+  onSelect,
+  onStartEdit,
+  onUpdateName,
+  onSaveName,
+  onCancelEdit,
+  onDuplicate,
+  onExport,
+  onDelete,
+}: {
+  env: Environment;
+  isSelected: boolean;
+  isActive: boolean;
+  isEditing: boolean;
+  newName: string;
+  onSelect: () => void;
+  onStartEdit: () => void;
+  onUpdateName: (name: string) => void;
+  onSaveName: () => void;
+  onCancelEdit: () => void;
+  onDuplicate: () => void;
+  onExport: () => void;
+  onDelete: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: env.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer group mb-1 ${
+        isSelected
+          ? 'bg-aki-accent/20 text-aki-accent'
+          : 'hover:bg-aki-border text-aki-text'
+      }`}
+      onClick={onSelect}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-aki-border rounded opacity-0 group-hover:opacity-100"
+      >
+        <GripVertical size={14} className="text-aki-text-muted" />
+      </button>
+      {isActive && (
+        <Check size={14} className="text-green-400 shrink-0" />
+      )}
+      {isEditing ? (
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => onUpdateName(e.target.value)}
+          onBlur={onSaveName}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSaveName();
+            if (e.key === 'Escape') onCancelEdit();
+          }}
+          className="flex-1 bg-transparent border-b border-aki-accent outline-none text-sm"
+          autoFocus
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="flex-1 text-sm truncate">{env.name}</span>
+      )}
+      <button
+        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          onStartEdit();
+        }}
+        title="Rename"
+      >
+        <Edit2 size={12} />
+      </button>
+      <button
+        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDuplicate();
+        }}
+        title="Duplicate"
+      >
+        <Copy size={12} />
+      </button>
+      <button
+        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          onExport();
+        }}
+        title="Export"
+      >
+        <Download size={12} />
+      </button>
+      <button
+        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded text-red-400"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        title="Delete"
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
+  );
+}
+
+// Sortable Variable Row
+function SortableVariableRow({
+  variable,
+  onUpdate,
+  onDelete,
+}: {
+  variable: KeyValue;
+  onUpdate: (id: string, updates: Partial<KeyValue>) => void;
+  onDelete: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: variable.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <tr ref={setNodeRef} style={style} className="border-b border-aki-border/50">
+      <td className="p-2">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-aki-border rounded"
+        >
+          <GripVertical size={14} className="text-aki-text-muted" />
+        </button>
+      </td>
+      <td className="p-2">
+        <input
+          type="checkbox"
+          checked={variable.enabled}
+          onChange={(e) => onUpdate(variable.id, { enabled: e.target.checked })}
+          className="w-4 h-4 accent-aki-accent"
+        />
+      </td>
+      <td className="p-0">
+        <input
+          type="text"
+          value={variable.key}
+          onChange={(e) => onUpdate(variable.id, { key: e.target.value })}
+          placeholder="Variable name"
+          className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
+        />
+      </td>
+      <td className="p-0">
+        <input
+          type={variable.isSecret ? 'password' : 'text'}
+          value={variable.value}
+          onChange={(e) => onUpdate(variable.id, { value: e.target.value })}
+          placeholder={variable.isSecret ? '••••••••' : 'Value'}
+          className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
+        />
+      </td>
+      <td className="p-2 text-center">
+        <button
+          onClick={() => onUpdate(variable.id, { isSecret: !variable.isSecret })}
+          className={`p-1.5 rounded transition-colors ${
+            variable.isSecret 
+              ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' 
+              : 'hover:bg-aki-border text-aki-text-muted hover:text-aki-text'
+          }`}
+          title={variable.isSecret ? 'Secret (value hidden in history)' : 'Not secret (click to make secret)'}
+        >
+          {variable.isSecret ? <Lock size={14} /> : <Unlock size={14} />}
+        </button>
+      </td>
+      <td className="p-2">
+        <button
+          onClick={() => onDelete(variable.id)}
+          className="p-1 hover:bg-aki-border rounded text-aki-text-muted hover:text-red-400"
+        >
+          <Trash2 size={14} />
+        </button>
+      </td>
+    </tr>
+  );
 }
 
 export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
@@ -18,6 +248,8 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
     setActiveEnvironment,
     duplicateEnvironment,
     importEnvironment,
+    reorderEnvironments,
+    reorderEnvironmentVariables,
   } = useAppStore();
 
   const [selectedEnvId, setSelectedEnvId] = useState<string | null>(
@@ -28,6 +260,14 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const selectedEnv = environments.find(e => e.id === selectedEnvId);
 
@@ -159,6 +399,26 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
     });
   };
 
+  const handleDragEndEnvironments = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = environments.findIndex(e => e.id === active.id);
+    const newIndex = environments.findIndex(e => e.id === over.id);
+
+    reorderEnvironments(oldIndex, newIndex);
+  };
+
+  const handleDragEndVariables = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !selectedEnv) return;
+
+    const oldIndex = selectedEnv.variables.findIndex(v => v.id === active.id);
+    const newIndex = selectedEnv.variables.findIndex(v => v.id === over.id);
+
+    reorderEnvironmentVariables(selectedEnv.id, oldIndex, newIndex);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
       <div className="bg-aki-card border border-aki-border rounded-lg shadow-2xl w-full max-w-4xl mx-4 overflow-hidden max-h-[80vh] flex flex-col">
@@ -220,82 +480,43 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                   No environments yet
                 </p>
               ) : (
-                environments.map((env) => (
-                  <div
-                    key={env.id}
-                    className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer group mb-1 ${
-                      selectedEnvId === env.id
-                        ? 'bg-aki-accent/20 text-aki-accent'
-                        : 'hover:bg-aki-border text-aki-text'
-                    }`}
-                    onClick={() => setSelectedEnvId(env.id)}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEndEnvironments}
+                >
+                  <SortableContext
+                    items={environments.map(e => e.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    {activeEnvironmentId === env.id && (
-                      <Check size={14} className="text-green-400 shrink-0" />
-                    )}
-                    {editingName === env.id ? (
-                      <input
-                        type="text"
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        onBlur={() => handleSaveName(env.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveName(env.id);
-                          if (e.key === 'Escape') setEditingName(null);
+                    {environments.map((env) => (
+                      <SortableEnvironmentItem
+                        key={env.id}
+                        env={env}
+                        isSelected={selectedEnvId === env.id}
+                        isActive={activeEnvironmentId === env.id}
+                        isEditing={editingName === env.id}
+                        newName={newName}
+                        onSelect={() => setSelectedEnvId(env.id)}
+                        onStartEdit={() => {
+                          setEditingName(env.id);
+                          setNewName(env.name);
                         }}
-                        className="flex-1 bg-transparent border-b border-aki-accent outline-none text-sm"
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
+                        onUpdateName={setNewName}
+                        onSaveName={() => handleSaveName(env.id)}
+                        onCancelEdit={() => setEditingName(null)}
+                        onDuplicate={() => handleDuplicateEnvironment(env.id)}
+                        onExport={() => handleExportEnvironment(env)}
+                        onDelete={() => {
+                          deleteEnvironment(env.id);
+                          if (selectedEnvId === env.id) {
+                            setSelectedEnvId(environments[0]?.id || null);
+                          }
+                        }}
                       />
-                    ) : (
-                      <span className="flex-1 text-sm truncate">{env.name}</span>
-                    )}
-                    <button
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingName(env.id);
-                        setNewName(env.name);
-                      }}
-                      title="Rename"
-                    >
-                      <Edit2 size={12} />
-                    </button>
-                    <button
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDuplicateEnvironment(env.id);
-                      }}
-                      title="Duplicate"
-                    >
-                      <Copy size={12} />
-                    </button>
-                    <button
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleExportEnvironment(env);
-                      }}
-                      title="Export"
-                    >
-                      <Download size={12} />
-                    </button>
-                    <button
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded text-red-400"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteEnvironment(env.id);
-                        if (selectedEnvId === env.id) {
-                          setSelectedEnvId(environments[0]?.id || null);
-                        }
-                      }}
-                      title="Delete"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                ))
+                    ))}
+                  </SortableContext>
+                </DndContext>
               )}
             </div>
           </div>
@@ -348,76 +569,39 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                 </div>
 
                 <div className="flex-1 overflow-auto p-4">
-                  <table className="w-full kv-table">
-                    <thead>
-                      <tr className="text-left text-xs text-aki-text-muted border-b border-aki-border">
-                        <th className="w-8 p-2"></th>
-                        <th className="p-2">Variable</th>
-                        <th className="p-2">Value</th>
-                        <th className="w-16 p-2 text-center">Secret</th>
-                        <th className="w-8 p-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedEnv.variables.map((variable) => (
-                        <tr key={variable.id} className="border-b border-aki-border/50">
-                          <td className="p-2">
-                            <input
-                              type="checkbox"
-                              checked={variable.enabled}
-                              onChange={(e) =>
-                                handleUpdateVariable(variable.id, { enabled: e.target.checked })
-                              }
-                              className="w-4 h-4 accent-aki-accent"
-                            />
-                          </td>
-                          <td className="p-0">
-                            <input
-                              type="text"
-                              value={variable.key}
-                              onChange={(e) =>
-                                handleUpdateVariable(variable.id, { key: e.target.value })
-                              }
-                              placeholder="Variable name"
-                              className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
-                            />
-                          </td>
-                          <td className="p-0">
-                            <input
-                              type={variable.isSecret ? 'password' : 'text'}
-                              value={variable.value}
-                              onChange={(e) =>
-                                handleUpdateVariable(variable.id, { value: e.target.value })
-                              }
-                              placeholder={variable.isSecret ? '••••••••' : 'Value'}
-                              className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <button
-                              onClick={() => handleUpdateVariable(variable.id, { isSecret: !variable.isSecret })}
-                              className={`p-1.5 rounded transition-colors ${
-                                variable.isSecret 
-                                  ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' 
-                                  : 'hover:bg-aki-border text-aki-text-muted hover:text-aki-text'
-                              }`}
-                              title={variable.isSecret ? 'Secret (value hidden in history)' : 'Not secret (click to make secret)'}
-                            >
-                              {variable.isSecret ? <Lock size={14} /> : <Unlock size={14} />}
-                            </button>
-                          </td>
-                          <td className="p-2">
-                            <button
-                              onClick={() => handleDeleteVariable(variable.id)}
-                              className="p-1 hover:bg-aki-border rounded text-aki-text-muted hover:text-red-400"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEndVariables}
+                  >
+                    <table className="w-full kv-table">
+                      <thead>
+                        <tr className="text-left text-xs text-aki-text-muted border-b border-aki-border">
+                          <th className="w-8 p-2"></th>
+                          <th className="w-8 p-2"></th>
+                          <th className="p-2">Variable</th>
+                          <th className="p-2">Value</th>
+                          <th className="w-16 p-2 text-center">Secret</th>
+                          <th className="w-8 p-2"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        <SortableContext
+                          items={selectedEnv.variables.map(v => v.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {selectedEnv.variables.map((variable) => (
+                            <SortableVariableRow
+                              key={variable.id}
+                              variable={variable}
+                              onUpdate={handleUpdateVariable}
+                              onDelete={handleDeleteVariable}
+                            />
+                          ))}
+                        </SortableContext>
+                      </tbody>
+                    </table>
+                  </DndContext>
                   <button
                     onClick={handleAddVariable}
                     className="flex items-center gap-1 px-3 py-2 text-sm text-aki-text-muted hover:text-aki-text mt-2"

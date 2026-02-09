@@ -124,6 +124,8 @@ interface AppStore {
   getActiveEnvironment: () => Environment | null;
   duplicateEnvironment: (id: string) => Environment | null;
   importEnvironment: (environment: Environment) => Environment;
+  reorderEnvironments: (fromIndex: number, toIndex: number) => void;
+  reorderEnvironmentVariables: (environmentId: string, fromIndex: number, toIndex: number) => void;
 
   // Tabs
   tabs: TabState[];
@@ -861,6 +863,23 @@ export const useAppStore = create<AppStore>()(
         });
 
         return imported;
+      },
+
+      reorderEnvironments: (fromIndex: number, toIndex: number) => {
+        set(state => {
+          const [removed] = state.environments.splice(fromIndex, 1);
+          state.environments.splice(toIndex, 0, removed);
+        });
+      },
+
+      reorderEnvironmentVariables: (environmentId: string, fromIndex: number, toIndex: number) => {
+        set(state => {
+          const envIndex = state.environments.findIndex(e => e.id === environmentId);
+          if (envIndex === -1) return;
+
+          const [removed] = state.environments[envIndex].variables.splice(fromIndex, 1);
+          state.environments[envIndex].variables.splice(toIndex, 0, removed);
+        });
       },
 
       // Tabs
