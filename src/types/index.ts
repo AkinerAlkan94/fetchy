@@ -5,7 +5,9 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 
 export interface KeyValue {
   id: string;
   key: string;
-  value: string;
+  value: string; // For backward compatibility, maps to currentValue
+  initialValue?: string; // Preset/shared value (can be exported)
+  currentValue?: string; // Local/runtime value (overrides initialValue)
   enabled: boolean;
   description?: string;
   isSecret?: boolean;

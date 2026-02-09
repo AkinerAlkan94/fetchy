@@ -200,7 +200,9 @@ export const importPostmanCollection = (content: string): Collection | null => {
     const variables: KeyValue[] = (postman.variable || []).map(v => ({
       id: uuidv4(),
       key: v.key,
-      value: v.value,
+      value: v.value, // For backward compatibility
+      initialValue: v.value, // Set imported value as initial
+      currentValue: '', // Start with empty current value
       enabled: !v.disabled,
     }));
 
@@ -467,7 +469,7 @@ export const exportToPostman = (collection: Collection): string => {
     ],
     variable: collection.variables?.map(v => ({
       key: v.key,
-      value: v.value,
+      value: v.initialValue ?? v.value ?? '', // Export initial value
       disabled: !v.enabled,
     })),
   };
@@ -487,17 +489,29 @@ export const replaceVariables = (
   // Build a map where later values (env vars) override earlier ones (collection vars)
   const variableMap = new Map<string, string>();
 
+  // Helper to get effective value (currentValue > value > initialValue)
+  const getEffectiveValue = (variable: KeyValue): string => {
+    // Prefer currentValue if set, otherwise use value, fallback to initialValue
+    if (variable.currentValue !== undefined) {
+      return variable.currentValue;
+    }
+    if (variable.value !== undefined) {
+      return variable.value;
+    }
+    return variable.initialValue || '';
+  };
+
   // Add collection variables first
   for (const variable of variables) {
     if (variable.enabled) {
-      variableMap.set(variable.key, variable.value);
+      variableMap.set(variable.key, getEffectiveValue(variable));
     }
   }
 
   // Add environment variables (will override collection vars with same key)
   for (const envVar of envVariables) {
     if (envVar.enabled) {
-      variableMap.set(envVar.key, envVar.value);
+      variableMap.set(envVar.key, getEffectiveValue(envVar));
     }
   }
 

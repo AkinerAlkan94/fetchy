@@ -51,7 +51,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
       name: env.name,
       variables: env.variables.map(v => ({
         key: v.key,
-        value: v.value,
+        value: v.initialValue ?? v.value ?? '', // Export initial value
         enabled: v.enabled,
         isSecret: v.isSecret,
         description: v.description,
@@ -100,7 +100,9 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
           variables: data.variables.map((v: any) => ({
             id: uuidv4(),
             key: v.key || '',
-            value: v.value || '',
+            value: v.value || '', // For backward compatibility
+            initialValue: v.value || '', // Set initial value from imported value
+            currentValue: '', // Start with empty current value
             enabled: v.enabled !== false,
             isSecret: v.isSecret || false,
             description: v.description || '',
@@ -137,7 +139,14 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
 
   const handleAddVariable = () => {
     if (!selectedEnv) return;
-    const newVar: KeyValue = { id: uuidv4(), key: '', value: '', enabled: true };
+    const newVar: KeyValue = {
+      id: uuidv4(),
+      key: '',
+      value: '',
+      initialValue: '',
+      currentValue: '',
+      enabled: true
+    };
     updateEnvironment(selectedEnv.id, {
       variables: [...selectedEnv.variables, newVar],
     });
@@ -353,69 +362,91 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                       <tr className="text-left text-xs text-aki-text-muted border-b border-aki-border">
                         <th className="w-8 p-2"></th>
                         <th className="p-2">Variable</th>
-                        <th className="p-2">Value</th>
+                        <th className="p-2">Initial Value</th>
+                        <th className="p-2">Current Value</th>
                         <th className="w-16 p-2 text-center">Secret</th>
                         <th className="w-8 p-2"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedEnv.variables.map((variable) => (
-                        <tr key={variable.id} className="border-b border-aki-border/50">
-                          <td className="p-2">
-                            <input
-                              type="checkbox"
-                              checked={variable.enabled}
-                              onChange={(e) =>
-                                handleUpdateVariable(variable.id, { enabled: e.target.checked })
-                              }
-                              className="w-4 h-4 accent-aki-accent"
-                            />
-                          </td>
-                          <td className="p-0">
-                            <input
-                              type="text"
-                              value={variable.key}
-                              onChange={(e) =>
-                                handleUpdateVariable(variable.id, { key: e.target.value })
-                              }
-                              placeholder="Variable name"
-                              className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
-                            />
-                          </td>
-                          <td className="p-0">
-                            <input
-                              type={variable.isSecret ? 'password' : 'text'}
-                              value={variable.value}
-                              onChange={(e) =>
-                                handleUpdateVariable(variable.id, { value: e.target.value })
-                              }
-                              placeholder={variable.isSecret ? '••••••••' : 'Value'}
-                              className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <button
-                              onClick={() => handleUpdateVariable(variable.id, { isSecret: !variable.isSecret })}
-                              className={`p-1.5 rounded transition-colors ${
-                                variable.isSecret 
-                                  ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' 
-                                  : 'hover:bg-aki-border text-aki-text-muted hover:text-aki-text'
-                              }`}
-                              title={variable.isSecret ? 'Secret (value hidden in history)' : 'Not secret (click to make secret)'}
-                            >
-                              {variable.isSecret ? <Lock size={14} /> : <Unlock size={14} />}
-                            </button>
-                          </td>
-                          <td className="p-2">
-                            <button
-                              onClick={() => handleDeleteVariable(variable.id)}
-                              className="p-1 hover:bg-aki-border rounded text-aki-text-muted hover:text-red-400"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {selectedEnv.variables.map((variable) => {
+                        // Get effective values for display
+                        const initialVal = variable.initialValue ?? variable.value ?? '';
+                        const currentVal = variable.currentValue ?? '';
+
+                        return (
+                          <tr key={variable.id} className="border-b border-aki-border/50">
+                            <td className="p-2">
+                              <input
+                                type="checkbox"
+                                checked={variable.enabled}
+                                onChange={(e) =>
+                                  handleUpdateVariable(variable.id, { enabled: e.target.checked })
+                                }
+                                className="w-4 h-4 accent-aki-accent"
+                              />
+                            </td>
+                            <td className="p-0">
+                              <input
+                                type="text"
+                                value={variable.key}
+                                onChange={(e) =>
+                                  handleUpdateVariable(variable.id, { key: e.target.value })
+                                }
+                                placeholder="Variable name"
+                                className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
+                              />
+                            </td>
+                            <td className="p-0">
+                              <input
+                                type={variable.isSecret ? 'password' : 'text'}
+                                value={initialVal}
+                                onChange={(e) =>
+                                  handleUpdateVariable(variable.id, {
+                                    initialValue: e.target.value,
+                                    value: e.target.value // Keep value in sync for backward compatibility
+                                  })
+                                }
+                                placeholder="Preset value (shared)"
+                                className="w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar"
+                              />
+                            </td>
+                            <td className="p-0">
+                              <input
+                                type={variable.isSecret ? 'password' : 'text'}
+                                value={currentVal}
+                                onChange={(e) =>
+                                  handleUpdateVariable(variable.id, { currentValue: e.target.value })
+                                }
+                                placeholder="Override value (local)"
+                                className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${currentVal ? 'text-aki-accent font-medium' : 'text-aki-text-muted'}`}
+                                title="Current value overrides initial value during execution"
+                              />
+                            </td>
+                            <td className="p-2 text-center">
+                              <button
+                                onClick={() => handleUpdateVariable(variable.id, { isSecret: !variable.isSecret })}
+                                className={`p-1.5 rounded transition-colors ${
+                                  variable.isSecret
+                                    ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
+                                    : 'hover:bg-aki-border text-aki-text-muted hover:text-aki-text'
+                                }`}
+                                title={variable.isSecret ? 'Secret (value hidden in history)' : 'Not secret (click to make secret)'}
+                              >
+                                {variable.isSecret ? <Lock size={14} /> : <Unlock size={14} />}
+                              </button>
+                            </td>
+                            <td className="p-2">
+                              <button
+                                onClick={() => handleDeleteVariable(variable.id)}
+                                className="p-1 hover:bg-aki-border rounded text-aki-text-muted hover:text-red-400"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                   <button
@@ -426,7 +457,14 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                   </button>
 
                   <div className="mt-6 p-4 bg-aki-sidebar rounded-lg">
-                    <h4 className="text-sm font-medium text-aki-text mb-2">Usage</h4>
+                    <h4 className="text-sm font-medium text-aki-text mb-2">Initial vs Current Values</h4>
+                    <p className="text-xs text-aki-text-muted mb-3">
+                      <strong className="text-aki-text">Initial Value:</strong> The preset/default value that can be shared and exported.
+                      <br />
+                      <strong className="text-aki-text">Current Value:</strong> Local override value used during execution. Not exported by default.
+                    </p>
+
+                    <h4 className="text-sm font-medium text-aki-text mb-2 mt-4">Usage</h4>
                     <p className="text-xs text-aki-text-muted mb-2">
                       Use variables in your requests with double angle brackets:
                     </p>
@@ -435,6 +473,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                     </code>
                     <p className="text-xs text-aki-text-muted mt-2">
                       Variables can be used in URLs, headers, body, and authentication fields.
+                      The current value takes priority if set, otherwise the initial value is used.
                     </p>
 
                     <div className="mt-4 pt-4 border-t border-aki-border">
