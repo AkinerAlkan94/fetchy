@@ -649,6 +649,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                 ? requests.findIndex(r => r.id === overRequest.id)
                 : requests.length;
               if (oldIndex !== -1 && newIndex !== -1) {
+                setSortOption('created');
                 reorderRequests(sourceCollectionId, sourceFolderId || null, oldIndex, newIndex);
               }
             }
@@ -1293,98 +1294,150 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                 </button>
               </>
             )}
-            {contextMenu.type === 'request' && (
-              <>
-                <button
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
-                  onClick={() => {
-                    duplicateRequest(contextMenu.collectionId, contextMenu.requestId!);
-                    closeContextMenu();
-                  }}
-                >
-                  <Copy size={14} /> Duplicate
-                </button>
-                <button
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
-                  onClick={() => {
-                    // Find the request to edit
-                    const collection = collections.find(c => c.id === contextMenu.collectionId);
-                    if (collection) {
-                      const findRequest = (folders: typeof collection.folders, requests: typeof collection.requests): ApiRequest | null => {
-                        // Check in root requests
-                        const request = requests.find(r => r.id === contextMenu.requestId);
-                        if (request) return request;
+            {contextMenu.type === 'request' && (() => {
+              const collection = collections.find(c => c.id === contextMenu.collectionId);
+              if (!collection) return null;
 
-                        // Check in folders
-                        for (const folder of folders) {
-                          const folderRequest = findRequest(folder.folders, folder.requests);
-                          if (folderRequest) return folderRequest;
-                        }
-                        return null;
-                      };
+              const findParent = (
+                folders: RequestFolder[],
+                folderId: string | undefined
+              ): { requests: ApiRequest[] } | null => {
+                if (!folderId) return collection;
+                for (const folder of folders) {
+                  if (folder.id === folderId) return folder;
+                  const found = findParent(folder.folders, folderId);
+                  if (found) return found;
+                }
+                return null;
+              };
 
-                      const request = findRequest(collection.folders, collection.requests);
-                      if (request) {
-                        setEditingId(request.id);
-                        setEditingName(request.name);
-                        closeContextMenu();
-                        setTimeout(() => inputRef.current?.focus(), 0);
-                      }
-                    }
-                  }}
-                >
-                  <Edit2 size={14} /> Rename
-                </button>
-                {collections.length > 1 && (
-                  <div className="relative">
+              const parent = findParent(collection.folders, contextMenu.folderId);
+              if (!parent) return null;
+
+              const requestIndex = parent.requests.findIndex(r => r.id === contextMenu.requestId);
+              if (requestIndex === -1) return null;
+
+              const canMoveUp = requestIndex > 0;
+              const canMoveDown = requestIndex < parent.requests.length - 1;
+
+              return (
+                <>
+                  {canMoveUp && (
                     <button
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2 justify-between"
-                      onClick={() => setShowMoveToMenu(!showMoveToMenu)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+                      onClick={() => {
+                        setSortOption('created');
+                        reorderRequests(contextMenu.collectionId, contextMenu.folderId || null, requestIndex, requestIndex - 1);
+                        closeContextMenu();
+                      }}
                     >
-                      <span className="flex items-center gap-2">
-                        <MoveRight size={14} /> Move to
-                      </span>
-                      <ChevronRight size={14} />
+                      <ChevronUp size={14} /> Move Up
                     </button>
-                    {showMoveToMenu && (
-                      <div className="absolute left-full top-0 ml-1 bg-aki-card border border-aki-border rounded-lg shadow-xl py-1 min-w-[160px] z-50">
-                        {collections
-                          .filter(c => c.id !== contextMenu.collectionId)
-                          .map(targetCollection => (
-                            <button
-                              key={targetCollection.id}
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
-                              onClick={() => {
-                                moveRequest(
-                                  contextMenu.collectionId,
-                                  contextMenu.folderId || null,
-                                  targetCollection.id,
-                                  null,
-                                  contextMenu.requestId!
-                                );
-                                closeContextMenu();
-                              }}
-                            >
-                              <Folder size={14} className="text-yellow-400" />
-                              <span className="truncate">{targetCollection.name}</span>
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                <hr className="my-1 border-aki-border" />
-                <button
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2 text-red-400"
-                  onClick={() => {
-                    deleteRequest(contextMenu.collectionId, contextMenu.requestId!);
-                    closeContextMenu();
-                  }}
-                >
-                  <Trash2 size={14} /> Delete
-                </button>
-              </>
-            )}
+                  )}
+                  {canMoveDown && (
+                    <button
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+                      onClick={() => {
+                        setSortOption('created');
+                        reorderRequests(contextMenu.collectionId, contextMenu.folderId || null, requestIndex, requestIndex + 1);
+                        closeContextMenu();
+                      }}
+                    >
+                      <ChevronDown size={14} /> Move Down
+                    </button>
+                  )}
+                  {(canMoveUp || canMoveDown) && <hr className="my-1 border-aki-border" />}
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+                    onClick={() => {
+                      duplicateRequest(contextMenu.collectionId, contextMenu.requestId!);
+                      closeContextMenu();
+                    }}
+                  >
+                    <Copy size={14} /> Duplicate
+                  </button>
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+                    onClick={() => {
+                      // Find the request to edit
+                      const collection = collections.find(c => c.id === contextMenu.collectionId);
+                      if (collection) {
+                        const findRequest = (folders: typeof collection.folders, requests: typeof collection.requests): ApiRequest | null => {
+                          // Check in root requests
+                          const request = requests.find(r => r.id === contextMenu.requestId);
+                          if (request) return request;
+
+                          // Check in folders
+                          for (const folder of folders) {
+                            const folderRequest = findRequest(folder.folders, folder.requests);
+                            if (folderRequest) return folderRequest;
+                          }
+                          return null;
+                        };
+
+                        const request = findRequest(collection.folders, collection.requests);
+                        if (request) {
+                          setEditingId(request.id);
+                          setEditingName(request.name);
+                          closeContextMenu();
+                          setTimeout(() => inputRef.current?.focus(), 0);
+                        }
+                      }
+                    }}
+                  >
+                    <Edit2 size={14} /> Rename
+                  </button>
+                  {collections.length > 1 && (
+                    <div className="relative">
+                      <button
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2 justify-between"
+                        onClick={() => setShowMoveToMenu(!showMoveToMenu)}
+                      >
+                        <span className="flex items-center gap-2">
+                          <MoveRight size={14} /> Move to
+                        </span>
+                        <ChevronRight size={14} />
+                      </button>
+                      {showMoveToMenu && (
+                        <div className="absolute left-full top-0 ml-1 bg-aki-card border border-aki-border rounded-lg shadow-xl py-1 min-w-[160px] z-50">
+                          {collections
+                            .filter(c => c.id !== contextMenu.collectionId)
+                            .map(targetCollection => (
+                              <button
+                                key={targetCollection.id}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+                                onClick={() => {
+                                  moveRequest(
+                                    contextMenu.collectionId,
+                                    contextMenu.folderId || null,
+                                    targetCollection.id,
+                                    null,
+                                    contextMenu.requestId!
+                                  );
+                                  closeContextMenu();
+                                }}
+                              >
+                                <Folder size={14} className="text-yellow-400" />
+                                <span className="truncate">{targetCollection.name}</span>
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <hr className="my-1 border-aki-border" />
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2 text-red-400"
+                    onClick={() => {
+                      deleteRequest(contextMenu.collectionId, contextMenu.requestId!);
+                      closeContextMenu();
+                    }}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </>
       )}
