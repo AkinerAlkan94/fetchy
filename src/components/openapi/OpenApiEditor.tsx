@@ -29,6 +29,9 @@ import {
   Braces,
   Edit2,
   Save,
+  PanelLeftClose,
+  PanelRightClose,
+  Columns2,
 } from 'lucide-react';
 import * as jsYaml from 'js-yaml';
 
@@ -62,6 +65,7 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
   const [activeSection, setActiveSection] = useState<'info' | 'paths' | 'schemas'>('paths');
   const [documentName, setDocumentName] = useState('New API Spec');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [viewMode, setViewMode] = useState<'both' | 'editor' | 'preview'>('both');
 
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -427,15 +431,16 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
   return (
     <div ref={containerRef} className="h-full flex flex-col overflow-hidden bg-aki-bg">
       {/* Toolbar */}
-      <div className="h-12 bg-aki-sidebar border-b border-aki-border flex items-center px-4 gap-4 shrink-0">
-        <div className="flex items-center gap-2">
-          <FileCode size={18} className="text-aki-accent" />
+      <div className="h-12 bg-aki-sidebar border-b border-aki-border flex items-center px-4 gap-2 shrink-0 overflow-hidden">
+        {/* Document Name */}
+        <div className="flex items-center gap-2 min-w-0 max-w-[200px]">
+          <FileCode size={18} className="text-aki-accent shrink-0" />
           {isEditingName ? (
             <input
               ref={nameInputRef}
               type="text"
               defaultValue={documentName}
-              className="font-medium text-aki-text bg-aki-bg border border-aki-accent rounded px-2 py-0.5 text-sm outline-none w-48"
+              className="font-medium text-aki-text bg-aki-bg border border-aki-accent rounded px-2 py-0.5 text-sm outline-none w-full min-w-0"
               onBlur={(e) => handleNameChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -448,21 +453,22 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
           ) : (
             <button
               onClick={() => setIsEditingName(true)}
-              className="font-medium text-aki-text hover:text-aki-accent flex items-center gap-1 group"
-              title="Click to rename"
+              className="font-medium text-aki-text hover:text-aki-accent flex items-center gap-1 group min-w-0 max-w-full"
+              title={documentName}
             >
-              {documentName}
-              <Edit2 size={12} className="text-aki-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="truncate">{documentName}</span>
+              <Edit2 size={12} className="text-aki-text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2 ml-4">
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* Save button */}
           <button
             onClick={saveDocument}
             disabled={!isModified}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded transition-colors whitespace-nowrap ${
               isModified
                 ? 'bg-aki-accent text-white hover:bg-aki-accent/90'
                 : 'bg-aki-bg border border-aki-border text-aki-text-muted cursor-not-allowed'
@@ -470,50 +476,103 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
             title="Save (Ctrl+S)"
           >
             <Save size={14} />
-            Save
+            <span className="hidden sm:inline">Save</span>
           </button>
           <button
             onClick={convertFormat}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-aki-bg border border-aki-border rounded hover:bg-aki-border transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-aki-bg border border-aki-border rounded hover:bg-aki-border transition-colors whitespace-nowrap"
             title={`Convert to ${format === 'yaml' ? 'JSON' : 'YAML'}`}
           >
             {format === 'yaml' ? <FileJson size={14} /> : <FileText size={14} />}
-            {format === 'yaml' ? 'To JSON' : 'To YAML'}
+            <span className="hidden md:inline">{format === 'yaml' ? 'To JSON' : 'To YAML'}</span>
           </button>
           <button
             onClick={downloadSpec}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-aki-bg border border-aki-border rounded hover:bg-aki-border transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-aki-bg border border-aki-border rounded hover:bg-aki-border transition-colors whitespace-nowrap"
+            title="Download"
           >
             <Download size={14} />
-            Download
+            <span className="hidden md:inline">Download</span>
           </button>
         </div>
 
         {/* Unsaved indicator */}
         {isModified ? (
-          <div className="flex items-center gap-1.5 text-xs text-yellow-400">
+          <div className="flex items-center gap-1.5 text-xs text-yellow-400 shrink-0">
             <span className="w-2 h-2 rounded-full bg-yellow-400" />
-            <span>Unsaved changes</span>
+            <span className="hidden lg:inline whitespace-nowrap">Unsaved changes</span>
           </div>
         ) : null}
 
-        <div className="flex-1" />
+        {/* Spacer */}
+        <div className="flex-1 min-w-4" />
 
+        {/* API Spec Info */}
         {parsedSpec ? (
-          <div className="flex items-center gap-3 text-sm text-aki-text-muted">
-            <span className="px-2 py-0.5 bg-aki-accent/20 text-aki-accent rounded text-xs font-medium">
+          <div className="flex items-center gap-2 text-sm text-aki-text-muted min-w-0 shrink">
+            <span className="px-2 py-0.5 bg-aki-accent/20 text-aki-accent rounded text-xs font-medium whitespace-nowrap shrink-0">
               {parsedSpec.openapi || parsedSpec.swagger || 'Unknown'}
             </span>
-            <span>{parsedSpec.info?.title || 'Untitled API'}</span>
-            <span className="text-aki-text-muted">v{parsedSpec.info?.version || '0.0.0'}</span>
+            <span className="truncate hidden md:inline" title={parsedSpec.info?.title || 'Untitled API'}>
+              {parsedSpec.info?.title || 'Untitled API'}
+            </span>
+            <span className="text-aki-text-muted whitespace-nowrap shrink-0">
+              v{parsedSpec.info?.version || '0.0.0'}
+            </span>
           </div>
         ) : null}
+
+        {/* Separator */}
+        <div className="w-[2px] h-8 bg-[#3a3a5a] dark:bg-[#3a3a5a] light:bg-[#dee2e6] mx-2 shrink-0" />
+
+        {/* View Mode Toggle - with background extending to right edge to prevent overlap */}
+        <div className="flex items-center gap-1 shrink-0 relative z-10 bg-aki-sidebar pl-2 pr-4 -ml-2 -mr-4">
+          <button
+            onClick={() => setViewMode('editor')}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'editor'
+                ? 'bg-aki-accent text-white'
+                : 'text-aki-text-muted hover:text-aki-text hover:bg-aki-border'
+            }`}
+            title="Editor only"
+          >
+            <PanelRightClose size={16} />
+          </button>
+          <button
+            onClick={() => setViewMode('both')}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'both'
+                ? 'bg-aki-accent text-white'
+                : 'text-aki-text-muted hover:text-aki-text hover:bg-aki-border'
+            }`}
+            title="Split view"
+          >
+            <Columns2 size={16} />
+          </button>
+          <button
+            onClick={() => setViewMode('preview')}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'preview'
+                ? 'bg-aki-accent text-white'
+                : 'text-aki-text-muted hover:text-aki-text hover:bg-aki-border'
+            }`}
+            title="Preview only"
+          >
+            <PanelLeftClose size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Editor Panel */}
-        <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col shrink-0 overflow-hidden">
+        {/* Editor Panel - always render but hide with CSS to preserve editor state */}
+        <div
+          style={{
+            width: viewMode === 'editor' ? '100%' : viewMode === 'both' ? `${editorWidth}%` : '0',
+            display: viewMode === 'preview' ? 'none' : 'flex'
+          }}
+          className="h-full flex-col shrink-0 overflow-hidden"
+        >
           <div className="h-8 bg-aki-sidebar border-b border-aki-border flex items-center px-3 gap-2">
             <span className={`text-xs px-2 py-0.5 rounded ${format === 'yaml' ? 'bg-purple-500/20 text-purple-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
               {format.toUpperCase()}
@@ -523,11 +582,18 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
           <div ref={editorRef} className="flex-1 overflow-auto" />
         </div>
 
-        {/* Resize Handle */}
-        <ResizeHandle direction="horizontal" onResize={handleEditorResize} />
+        {/* Resize Handle - only show in split view */}
+        {viewMode === 'both' && (
+          <ResizeHandle direction="horizontal" onResize={handleEditorResize} />
+        )}
 
-        {/* Visualization Panel */}
-        <div className="flex-1 h-full flex flex-col overflow-hidden">
+        {/* Visualization Panel - always render but hide with CSS to maintain consistency */}
+        <div
+          style={{
+            display: viewMode === 'editor' ? 'none' : 'flex'
+          }}
+          className="flex-1 h-full flex-col overflow-hidden"
+        >
           <div className="h-8 bg-aki-sidebar border-b border-aki-border flex items-center px-3">
             <span className="text-xs text-aki-text-muted">Preview</span>
           </div>
