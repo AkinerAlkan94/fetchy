@@ -562,3 +562,119 @@ body.light-theme .kv-table tr:hover {
   background: rgba(0, 0, 0, 0.02);
 }
 
+/* OpenAPI HTML Description Styles */
+.openapi-description {
+  line-height: 1.5;
+}
+
+.openapi-description table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.75rem;
+  background-color: var(--sidebar-color);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.openapi-description th,
+.openapi-description td {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.openapi-description th {
+  background-color: var(--hover-bg);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.openapi-description td {
+  color: var(--text-muted);
+}
+
+.openapi-description tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+body.light-theme .openapi-description tr:hover td {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.openapi-description code {
+  background-color: var(--input-bg);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.875em;
+}
+
+.openapi-description pre {
+  background-color: var(--input-bg);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.openapi-description pre code {
+  background: none;
+  padding: 0;
+}
+
+.openapi-description a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.openapi-description a:hover {
+  text-decoration: underline;
+}
+
+.openapi-description ul,
+.openapi-description ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.openapi-description li {
+  margin: 0.25rem 0;
+}
+
+.openapi-description p {
+  margin: 0.5rem 0;
+}
+
+.openapi-description p:first-child {
+  margin-top: 0;
+}
+
+.openapi-description p:last-child {
+  margin-bottom: 0;
+}
+
+.openapi-description blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: var(--text-muted);
+}
+
+.openapi-description h1,
+.openapi-description h2,
+.openapi-description h3,
+.openapi-description h4,
+.openapi-description h5,
+.openapi-description h6 {
+  margin: 0.75rem 0 0.5rem 0;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.openapi-description hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 0.75rem 0;
+}
+

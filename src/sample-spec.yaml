@@ -1,0 +1,5002 @@
+openapi: 3.0.3
+info:
+  contact:
+    name: Remote Services Team
+    email: support@example.com
+  description: |
+    Remote Services API
+  version: 0.0.1-Early-Access-SNAPSHOT
+  x-visibility: external
+  title: Remote Services API
+servers:
+  - url: /api
+tags:
+  - name: Tenant Management
+    description: Tenant management
+  - name: Organization Management
+    description: Organization management
+  - name: Product Management
+    description: Product management
+  - name: Node Management
+    description: Node Management
+  - name: Site Management
+    description: Site Management
+  - name: Gateway Management
+    description: Gateway Management
+  - name: Client Management
+    description: Client Management
+  - name: Secondary Target Management
+    description: Secondary Target Management
+  - name: Endpoint Management
+    description: Endpoint Management
+  - name: Connector Management
+    description: Connector management
+  - name: Connector Assignment Management
+    description: Connector Assignment Management
+  - name: Tunnel Management
+    description: Tunnel Management
+  - name: Monitoring
+    description: Monitoring
+  - name: Session Management
+    description: Session management
+paths:
+  /tenants:
+    post:
+      summary: Create a new tenant
+      operationId: createTenant
+      description: |
+        Creates a new tenant
+      tags:
+        - Tenant Management
+      security:
+        - tenant_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  description: A JSON document specifying a tenant
+                  type: object
+                  properties:
+                    id:
+                      $ref: '#/components/schemas/TenantId'
+                  required:
+                    - id
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+  '/tenants/{id}':
+    get:
+      summary: Retrieve a tenant
+      operationId: getTenant
+      description: |
+        Retrieve a tenant
+      tags:
+        - Tenant Management
+      security:
+        - tenant_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/ResourceTenant'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  '/organizations/{id}':
+    get:
+      summary: Retrieve an organization
+      operationId: getOrganization
+      description: |
+        Retrieve an organization
+      tags:
+        - Organization Management
+      security:
+        - organization_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    description: A JSON document specifying an organization
+                    type: object
+                    properties:
+                      id:
+                        $ref: '#/components/schemas/BaseConnector/properties/organizationId'
+                      name:
+                        description: The name of a resource
+                        type: string
+                        example: resourceName
+                        maxLength: 255
+                      rootNodeId:
+                        allOf:
+                          - $ref: '#/components/schemas/Target/properties/id'
+                          - example: e1f2g3h4
+                      rootProductId:
+                        allOf:
+                          - $ref: '#/components/schemas/Target/properties/id'
+                          - example: m1d2c3e4
+                    required:
+                      - id
+                      - rootNodeId
+                      - rootProductId
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  /products:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new product node
+      operationId: createProduct
+      description: |
+        Creates a new product node
+      tags:
+        - Product Management
+      security:
+        - product_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateProduct'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all product nodes
+      operationId: listProducts
+      description: |
+        Lists all product nodes
+      tags:
+        - Product Management
+      security:
+        - product_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/parentId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceProductListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/products/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a product node
+      operationId: getProduct
+      description: |
+        Retrieve a product node
+      tags:
+        - Product Management
+      security:
+        - product_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/ProductNode'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a product node
+      operationId: deleteProduct
+      description: |
+        Delete a product node
+      tags:
+        - Product Management
+      security:
+        - product_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/products/{id}/change-name':
+    post:
+      summary: Update a product's name
+      operationId: changeProductName
+      description: |
+        Change name of a product
+      tags:
+        - Product Management
+      security:
+        - product_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeProductName'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/products/{id}/move':
+    post:
+      summary: Move product from a parent to another
+      operationId: moveProduct
+      description: |
+        Move product from a parent to another
+      tags:
+        - Product Management
+      security:
+        - product_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToMoveProduct'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/products/{id}/clone':
+    post:
+      summary: Clone product from a parent to another
+      operationId: cloneProduct
+      description: |
+        Clone product from a parent to another
+      tags:
+        - Product Management
+      security:
+        - product_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCloneProduct'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /nodes:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new node
+      operationId: createNode
+      description: |
+        Creates a new node
+      tags:
+        - Node Management
+      security:
+        - node_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateNode'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all nodes
+      operationId: listNodes
+      description: |
+        Lists all nodes
+      tags:
+        - Node Management
+      security:
+        - node_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/parentId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    type: object
+                    description: pathToEndpoint is only a placeholder in the example. It will be replaced by the actual path value of the endpoint.
+                    properties:
+                      self:
+                        type: string
+                        example: 'https://sws.siemens.cloud/remoteservices/pathToEndpoint?size=100'
+                      next:
+                        type: string
+                        example: 'https://sws.siemens.cloud/remoteservices/pathToEndpoint?size=100&number=2'
+                      last:
+                        type: string
+                        example: 'https://sws.siemens.cloud/remoteservices/pathToEndpoint?size=100&number=5'
+                      first:
+                        type: string
+                        example: 'https://sws.siemens.cloud/remoteservices/pathToEndpoint?size=100'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceNodeListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/nodes/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a node
+      operationId: getNode
+      description: |
+        Retrieve a node
+      tags:
+        - Node Management
+      security:
+        - node_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    type: object
+                    description: pathToEndpoint is only a placeholder in the example. It will be replaced by the actual path value of the endpoint.
+                    properties:
+                      self:
+                        type: string
+                        example: 'https://sws.siemens.cloud/remoteservices/pathToEndpoint/a1b2c3d4'
+                  data:
+                    $ref: '#/components/schemas/Node'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a node
+      operationId: deleteNode
+      description: |
+        Delete a node
+      tags:
+        - Node Management
+      security:
+        - node_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/nodes/{id}/change-name':
+    post:
+      summary: Update a node's name
+      operationId: changeNodeName
+      description: |
+        Change name of a node
+      tags:
+        - Node Management
+      security:
+        - node_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeNodeName'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/nodes/{id}/move':
+    post:
+      summary: Move a node to another parent
+      operationId: moveNode
+      description: |
+        Move a node to another parent
+      tags:
+        - Node Management
+      security:
+        - node_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToMoveNode'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/nodes/{id}/clone':
+    post:
+      summary: Clone node from a parent to another
+      operationId: cloneNode
+      description: |
+        Clone node from a parent to another
+      tags:
+        - Node Management
+      security:
+        - node_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  description: A JSON document specifying a request to clone a node
+                  type: object
+                  properties:
+                    newParentId:
+                      $ref: '#/components/schemas/NodeId'
+                  required:
+                    - newParentId
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /sites:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new site
+      operationId: createSite
+      description: |
+        Creates a new site
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateSite'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all sites
+      operationId: listSites
+      description: |
+        Lists all sites
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/nodeId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceSiteListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/sites/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a site
+      operationId: getSite
+      description: |
+        Retrieve a site
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/Site'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a site
+      operationId: deleteSite
+      description: |
+        Delete a site
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/sites/{id}/change-name':
+    post:
+      summary: Update a site's name
+      operationId: changeSiteName
+      description: |
+        Change name of a site
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeSiteName'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/sites/{id}/lock-connectivity':
+    post:
+      summary: Lock site connectivity.
+      operationId: lockSiteConnectivity
+      description: |
+        Lock site connectivity.
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/sites/{id}/unlock-connectivity':
+    post:
+      summary: Unlock site connectivity.
+      operationId: unlockSiteConnectivity
+      description: |
+        Unlock site connectivity.
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/sites/{id}/move':
+    post:
+      summary: Move a site to another parent
+      operationId: moveSite
+      description: |
+        Move a site to another parent
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToMoveSite'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/sites/{id}/clone':
+    post:
+      summary: Clone site from a parent to another
+      operationId: cloneSite
+      description: |
+        Clone site from a parent to another
+      tags:
+        - Site Management
+      security:
+        - site_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCloneSite'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /gateways:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new gateway
+      operationId: createGateway
+      description: |
+        Creates a new gateway
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateGateway'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all gateways
+      operationId: listGateways
+      description: |
+        Lists all gateways
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceGatewayListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/gateways/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a gateway
+      operationId: getGateway
+      description: |
+        Retrieve a gateway
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/Gateway'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a gateway
+      operationId: deleteGateway
+      description: |
+        Delete a gateway
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/gateways/{id}/change-name':
+    post:
+      summary: Update a gateway's name
+      operationId: changeGatewayName
+      description: |
+        Change name of a gateway
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeGatewayName'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/gateways/{id}/lock-connectivity':
+    post:
+      summary: Lock gateway connectivity.
+      operationId: lockGatewayConnectivity
+      description: |
+        Lock gateway connectivity.
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/gateways/{id}/unlock-connectivity':
+    post:
+      summary: Unlock gateway connectivity.
+      operationId: unlockGatewayConnectivity
+      description: |
+        Unlock gateway connectivity.
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/gateways/{id}/move':
+    post:
+      summary: Move a gateway to another site
+      operationId: moveGateway
+      description: |
+        Move a gateway to another site
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToMoveGateway'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/gateways/{id}/clone':
+    post:
+      summary: Clone gateway from a site to another
+      operationId: cloneGateway
+      description: |
+        Clone gateway from a site to another
+      tags:
+        - Gateway Management
+      security:
+        - gateway_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCopyGateway'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /secondary-targets:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new secondary target
+      operationId: createSecondaryTarget
+      description: |
+        Creates a new secondary target
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateSecondaryTarget'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all secondary targets
+      operationId: listSecondaryTargets
+      description: |
+        Lists all secondary targets
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/gatewayId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceHostListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/secondary-targets/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a secondary target
+      operationId: getSecondaryTarget
+      description: |
+        Retrieve a secondary target
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/Host'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a secondary target
+      operationId: deleteSecondaryTarget
+      description: |
+        Delete a secondary target
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/secondary-targets/{id}/change-name':
+    post:
+      summary: Update a secondary target's name
+      operationId: changeSecondaryTargetName
+      description: |
+        Change name of a secondary target
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeSecondaryTargetName'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/secondary-targets/{id}/change-product':
+    post:
+      summary: Change product of a secondary target
+      operationId: changeSecondaryTargetProduct
+      description: |
+        Change product of a secondary target
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeProduct'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/secondary-targets/{id}/lock-connectivity':
+    post:
+      summary: Lock secondary target connectivity.
+      operationId: lockSecondaryTargetConnectivity
+      description: |
+        Lock secondary target connectivity.
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/secondary-targets/{id}/unlock-connectivity':
+    post:
+      summary: Unlock secondary target connectivity.
+      operationId: unlockSecondaryTargetConnectivity
+      description: |
+        Unlock secondary target connectivity.
+      tags:
+        - Secondary Target Management
+      security:
+        - secondary_target_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /endpoints:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new endpoint
+      operationId: createEndpoint
+      description: |
+        Creates a new endpoint
+      tags:
+        - Endpoint Management
+      security:
+        - endpoint_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  description: A JSON document specifying an endpoint
+                  type: object
+                  properties:
+                    clientId:
+                      allOf:
+                        - $ref: '#/components/schemas/Target/properties/id'
+                        - example: c1d2e3f4
+                    address:
+                      $ref: '#/components/schemas/Address'
+                    ownerType:
+                      description: The owner type of an endpoint.
+                      type: string
+                      enum:
+                        - USER
+                        - TECHNICAL_USER
+                        - GLOBAL_TECHNICAL_USER
+                        - GATEWAY
+                        - SECONDARY_TARGET
+                      example: GATEWAY
+                    ownerId:
+                      $ref: '#/components/schemas/Target/properties/id'
+                  required:
+                    - address
+                    - ownerType
+                    - clientId
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all endpoints
+      operationId: listEndpoints
+      description: |
+        Lists all endpoints
+      tags:
+        - Endpoint Management
+      security:
+        - endpoint_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/clientId'
+        - $ref: '#/components/parameters/secondaryTargetId'
+        - $ref: '#/components/parameters/ownerType'
+        - $ref: '#/components/parameters/gatewayId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    type: object
+                    properties:
+                      endpoints:
+                        type: array
+                        items:
+                          $ref: '#/paths/~1endpoints~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/data'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/endpoints/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve an endpoint
+      operationId: getEndpoint
+      description: |
+        Retrieve an endpoint
+      tags:
+        - Endpoint Management
+      security:
+        - endpoint_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    description: A JSON document specifying an endpoint
+                    type: object
+                    properties:
+                      id:
+                        allOf:
+                          - $ref: '#/components/schemas/Target/properties/id'
+                          - example: e1f2g3h4
+                      clientId:
+                        allOf:
+                          - $ref: '#/components/schemas/Target/properties/id'
+                          - example: c1d2e3f4
+                      ownerType:
+                        $ref: '#/paths/~1endpoints/post/requestBody/content/application~1json/schema/properties/data/properties/ownerType'
+                      ownerId:
+                        $ref: '#/components/schemas/Target/properties/id'
+                      address:
+                        $ref: '#/components/schemas/Address'
+                    required:
+                      - clientId
+                      - ownerType
+                      - ownerId
+                      - address
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete an endpoint
+      operationId: deleteEndpoint
+      description: |
+        Delete an endpoint
+      tags:
+        - Endpoint Management
+      security:
+        - endpoint_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/endpoints/{id}/change-address':
+    post:
+      summary: Update an endpoint's address
+      operationId: changeEndpointAddress
+      description: |
+        Change address of an endpoint
+      tags:
+        - Endpoint Management
+      security:
+        - endpoint_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  description: A JSON document specifying a request to change address of an endpoint
+                  type: object
+                  properties:
+                    newAddress:
+                      $ref: '#/components/schemas/Address'
+                  required:
+                    - newAddress
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/endpoints/{id}/lock-connectivity':
+    post:
+      summary: Lock endpoint connectivity.
+      operationId: lockEndpointConnectivity
+      description: |
+        Lock endpoint connectivity.
+      tags:
+        - Endpoint Management
+      security:
+        - endpoint_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/endpoints/{id}/unlock-connectivity':
+    post:
+      summary: Unlock endpoint connectivity.
+      operationId: unlockEndpointConnectivity
+      description: |
+        Unlock endpoint connectivity.
+      tags:
+        - Endpoint Management
+      security:
+        - endpoint_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /connector-assignments:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new connector assignment
+      operationId: createConnectorAssignment
+      description: |
+        Creates a new connector assignment
+      tags:
+        - Connector Assignment Management
+      security:
+        - connector_assignment_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateConnectorAssignment'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all connector assignments
+      operationId: listConnectorAssignments
+      description: |
+        Lists all connector assignments
+      tags:
+        - Connector Assignment Management
+      security:
+        - connector_assignment_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceConnectorAssignmentListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/connector-assignments/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a connector assignment
+      operationId: getConnectorAssignment
+      description: |
+        Retrieve a connector assignment
+      tags:
+        - Connector Assignment Management
+      security:
+        - connector_assignment_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/Target'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a connector assignment
+      operationId: deleteConnectorAssignment
+      description: |
+        Delete a connector assignment
+      tags:
+        - Connector Assignment Management
+      security:
+        - connector_assignment_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /clients:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new client
+      operationId: createClient
+      description: |
+        Creates a new client
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  description: A JSON document specifying a client
+                  type: object
+                  properties:
+                    ownerType:
+                      $ref: '#/components/schemas/ClientOwnerType'
+                    ownerId:
+                      $ref: '#/components/schemas/ClientOwnerId'
+                  required:
+                    - address
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all clients
+      operationId: listClients
+      description: |
+        Lists all clients
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/gatewayId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceClientListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  /clients/accessible-by-user:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: List clients a user has access to
+      operationId: listAccessibleClientsForUser
+      description: |
+        List clients a user has access to
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/userIdrequired'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceClientListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/clients/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a client
+      operationId: getClient
+      description: |
+        Retrieve a client
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/Client'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a client
+      operationId: deleteClient
+      description: |
+        Delete a client
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/clients/{id}/package':
+    post:
+      summary: Prepare a client package
+      operationId: packageClient
+      description: |
+        Prepare a client package consisting of client binary and client configuration files and 
+        retrieve pre-signed URL to download it.
+
+        The response contains a 1-hour pre-signed URL to download the package once it is ready.
+
+        The package will have the name in this pattern:
+
+          - "rs-client-package-{package type}-v{version}-{clientId}.tar.gz"
+          - i.e. rs-client-package-x64_windows10-v1.0.0-2728345572233708693.tar.gz
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateClientPackage'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/clients/{id}/configuration':
+    post:
+      summary: Prepare a client configuration
+      operationId: retrieveClientConfiguration
+      description: |
+        Prepare a client configuration file and retrieve pre-signed URL to download it.
+
+        The response contains a 1-hour pre-signed URL to download the configuration file once it is ready.
+
+        The configuration file package will have the name in this pattern:
+
+          - "rs-client-configuration-{package type}-v{version}-{clientId}.tar.gz"
+
+          - i.e. rs-client-configuration-x64_windows10-v1.0.0-2728345572233708693.tar.gz
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateClientConfiguration'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/clients/{id}/configuration-content':
+    post:
+      summary: Get client configuration with specified encoding
+      operationId: getClientConfiguration
+      description: |
+        Get client configuration file with specified encoding and retrieve the content of configuration file directly in response.
+        Currently, the only supported encoding type is base64.
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+        - name: encoding
+          in: query
+          description: 'The encoding type for the configuration file. Currently, only ''base64'' is supported.'
+          required: true
+          schema:
+            type: string
+            enum:
+              - base64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateClientConfiguration'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    type: object
+                    properties:
+                      config:
+                        type: string
+                        description: The configuration content
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /clients/binary:
+    post:
+      summary: Prepare a client binary
+      operationId: retrieveClientBinary
+      description: |
+        Prepare a client binary and retrieve pre-signed URL to download it
+
+        Prepare a client binary package consisting of client binary only and 
+        retrieve pre-signed URL to download it.
+
+        The response contains a 1-hour pre-signed URL to download the package once it is ready.
+
+        The binary package will have the name in this pattern:
+
+          - "rs-client-binary-{package type}-v{version}.tar.gz"
+
+          - i.e. rs-client-binary-x64_windows10-v1.0.0.tar.gz
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateClientBinary'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/clients/{id}/revoke-credentials':
+    post:
+      summary: Revoke client credentials.
+      operationId: revokeClientCredentials
+      description: |
+        Revoke client credentials. To be able to use this client, a new package must be prepared and deployed to its environment.
+      tags:
+        - Client Management
+      security:
+        - client_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /tunnels:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new tunnel
+      operationId: createTunnel
+      description: |
+        Creates a new tunnel
+      tags:
+        - Tunnel Management
+      security:
+        - tunnel_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToCreateTunnel'
+      responses:
+        '201':
+          description: Resource is created
+          headers:
+            Location:
+              description: URI to the resource.
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all tunnels
+      operationId: listTunnels
+      description: |
+        Lists all tunnels
+      tags:
+        - Tunnel Management
+      security:
+        - tunnel_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceTunnelListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/tunnels/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a tunnel
+      operationId: getTunnel
+      description: |
+        Retrieve a tunnel
+      tags:
+        - Tunnel Management
+      security:
+        - tunnel_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/Tunnel'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  '/tunnels/{id}/request-termination':
+    post:
+      summary: Request termination of a tunnel.
+      operationId: requestTunnelTermination
+      description: |
+        Request termination of a tunnel.
+      tags:
+        - Tunnel Management
+      security:
+        - tunnel_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /tunnels/network-interfaces:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: List network interfaces of a client.
+      operationId: listNetworkInterfaces
+      description: |
+        List network interfaces of a client to establish proxy unaware tunnel.
+      tags:
+        - Tunnel Management
+      security:
+        - tunnel_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/clientIdRequired'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    type: object
+                    properties:
+                      networkInterfaces:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Address'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  /monitoring/health/gateways:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a gateway health
+      operationId: getGatewayHealth
+      description: |
+        Retrieve a gateway health
+        **Long Polling Request:**
+         - `await` parameter must be true.
+         - `gatewayId` must be included.
+
+         **Regular Request:**
+         - `await` parameter must be false.
+         - Must include at least one of the parameters: `gatewayId` or `siteId`.
+      tags:
+        - Monitoring
+      security:
+        - monitoring_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/gatewayId'
+        - $ref: '#/components/parameters/siteId'
+        - $ref: '#/components/parameters/await'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceGatewayHealthListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  /monitoring/health/secondary-targets:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a secondary target health
+      operationId: getSecondaryTargetHealth
+      description: |
+        Retrieve a secondary target health
+        **Long Polling Request:**
+        - `await` parameter must be true.
+        - `secondaryTargetId` must be included.
+
+        **Regular Request:**
+        - `await` parameter must be false.
+        - Must include at least one of the parameters: `gatewayId` or `secondaryTargetId`.
+      tags:
+        - Monitoring
+      security:
+        - monitoring_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/secondaryTargetId'
+        - $ref: '#/components/parameters/gatewayId'
+        - $ref: '#/components/parameters/await'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceSecondaryTargetHealthListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  /monitoring/health/clients:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a client health
+      operationId: getClientHealth
+      description: |
+        Retrieve a client health
+        **Long Polling Request:**
+        - `await` parameter must be true.
+        - `clientId` must be included.
+
+        **Regular Request:**
+        - `await` parameter must be false.
+        - Must include at least one of the following parameters: `clientId`, or `ownerId` and `ownerType`.
+
+        **Owner Type Rules:**
+        - `ownerType` can be `USER`, `DEVICE`, `TECHNICAL_USER`, or `GLOBAL_TECHNICAL_USER`.
+        - Only `USER` and `DEVICE` are supported in the current release.
+        - Sending `TECHNICAL_USER` or `GLOBAL_TECHNICAL_USER` will result in an `UnsupportedFeatureException`.
+
+        **ID Rules:**
+        - If `ownerType` is `DEVICE`, `ownerId` must be DEVICE id.
+        - If `ownerType` is `DEVICE`, `ownerId` must be DEVICE id.
+        - If `ownerType` is provided, `ownerId` must be included.
+      tags:
+        - Monitoring
+      security:
+        - monitoring_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/clientId'
+        - $ref: '#/components/parameters/ownerType'
+        - $ref: '#/components/parameters/ownerId'
+        - $ref: '#/components/parameters/await'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceClientHealthListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  /monitoring/tunnel-status:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve tunnel status
+      operationId: getTunnelStatus
+      description: |
+        Retrieve active tunnel status
+
+        **Long Polling Request:**
+        - `await` parameter must be true.
+        - Either `secondaryTargetId` or `clientId` must be included.
+
+        **Regular Request:**
+        - `await` parameter must be false.
+        - Must include at least one of the parameters: `organizationId`, `clientId`, `tunnelId`, or `secondaryTargetId`.
+      tags:
+        - Monitoring
+      security:
+        - monitoring_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/tunnelId'
+        - $ref: '#/components/parameters/secondaryTargetId'
+        - $ref: '#/components/parameters/organizationIdoptional'
+        - $ref: '#/components/parameters/clientId'
+        - $ref: '#/components/parameters/await'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    type: object
+                    properties:
+                      clients:
+                        type: array
+                        items:
+                          description: A JSON document specifying a tunnel status information
+                          type: object
+                          properties:
+                            tunnelId:
+                              $ref: '#/components/schemas/Tunnel/properties/id'
+                            reportedAt:
+                              $ref: '#/components/schemas/Timestamp'
+                            status:
+                              $ref: '#/components/schemas/TunnelStatus'
+                            targetId:
+                              $ref: '#/components/schemas/TunnelId'
+                          required:
+                            - tunnelId
+                            - status
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+  /connectors:
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    post:
+      summary: Create a new connector
+      operationId: createConnector
+      description: |
+        Creates a new connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ResourceConnector'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Default'
+    get:
+      summary: List all connectors
+      operationId: listConnectors
+      description: |
+        Lists all connectors
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+        - $ref: '#/components/parameters/number'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/PagedResourceConnectorListResponse'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        $ref: '#/components/schemas/Page'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}':
+    parameters:
+      - $ref: '#/components/parameters/x-user-role'
+    get:
+      summary: Retrieve a connector
+      operationId: getConnector
+      description: |
+        Retrieve a connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/ResourceConnector'
+                  meta:
+                    $ref: '#/components/schemas/Metadata'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+    delete:
+      summary: Delete a connector
+      operationId: deleteConnector
+      description: |
+        Delete a connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No content
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}/change-name':
+    post:
+      summary: Update connector's name
+      operationId: changeConnectorName
+      description: |
+        Change name of a connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeConnectorName'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}/change-description':
+    post:
+      summary: Update connector's description
+      operationId: changeConnectorDescription
+      description: |
+        Change description of a connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeConnectorDescription'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}/require-permission':
+    post:
+      summary: Enforce permission for connector
+      operationId: requirePermissionForConnector
+      description: |
+        Enforce permission for connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}/require-no-permission':
+    post:
+      summary: Do not require a permission for connector
+      operationId: doNotRequirePermissionForConnector
+      description: |
+        Do not require a permission for connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}/never-times-out':
+    post:
+      summary: Set idle timeout configuration to be infinite
+      operationId: markConnectorNeverTimesOut
+      description: |
+        Set idle timeout configuration to be infinite
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}/change-idle-timeout':
+    post:
+      summary: Update connector's idle timeout configuration
+      operationId: changeConnectorIdleTimeout
+      description: |
+        Change idle timeout configuration of a connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeConnectorIdleTimeout'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  '/connectors/{id}/change-parameters':
+    post:
+      summary: Update connector's parameters
+      operationId: changeConnectorPArameters
+      description: |
+        Change parameters of a connector
+      tags:
+        - Connector Management
+      security:
+        - connector_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/x-version'
+        - $ref: '#/components/parameters/x-user-role'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: A JSON document specifying a data
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/RequestBodyToChangeConnectorParameters'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ResourceConflict'
+        default:
+          $ref: '#/components/responses/Default'
+  /session/user-info:
+    get:
+      summary: Retrieve a user session info
+      operationId: getUserSessionInfo
+      description: |
+        Retrieve a user session info
+      tags:
+        - Session Management
+      security:
+        - session_management:
+            - remoteservices.orguser
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: ETag hash of the returned resource.
+          content:
+            application/json:
+              schema:
+                description: A JSON document specifying a data
+                type: object
+                properties:
+                  links:
+                    $ref: '#/paths/~1nodes~1%7Bid%7D/get/responses/200/content/application~1json/schema/properties/links'
+                  data:
+                    $ref: '#/components/schemas/ResourceUserSession'
+        '304':
+          description: Not modified
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/Default'
+components:
+  parameters:
+    ID:
+      name: id
+      in: path
+      description: Specifies the ID for the resource
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    organizationId:
+      name: organizationId
+      in: query
+      description: Specifies the ID of the organization
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    organizationIdoptional:
+      name: organizationId
+      in: query
+      description: Specifies the ID of the organization
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    userIdrequired:
+      name: userId
+      in: query
+      description: Specifies the ID of the relevant user
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    nodeId:
+      name: nodeId
+      in: query
+      description: Specifies the ID of the relevant tree node
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    siteId:
+      name: siteId
+      in: query
+      description: Specifies the ID of the relevant site
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    gatewayId:
+      name: gatewayId
+      in: query
+      description: Specifies the ID of the relevant gateway
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    parentId:
+      name: parentId
+      in: query
+      description: Specifies the parentId of a tree node
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    tunnelId:
+      name: tunnelId
+      in: query
+      description: Specifies the tunnelId of a tunnel
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    clientId:
+      name: clientId
+      in: query
+      description: Specifies the clientId of a client
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    secondaryTargetId:
+      name: secondaryTargetId
+      in: query
+      description: Specifies the secondaryTargetId of an endpoint
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    clientIdRequired:
+      name: clientId
+      in: query
+      description: Specifies the clientId of a client
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    ownerId:
+      name: ownerId
+      in: query
+      description: Specifies the ownerId of a client
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    ownerType:
+      name: ownerType
+      in: query
+      description: Specifies the ownerType of a client
+      required: false
+      schema:
+        $ref: '#/components/schemas/ClientOwnerType'
+    await:
+      name: await
+      in: query
+      required: false
+      description: Flag to instruct the endpoint to wait before responding untile it detects a change. (Long polling)
+      schema:
+        type: boolean
+        default: false
+    x-user-role:
+      name: x-user-role
+      in: header
+      description: Specifies the user role with which the user intends to perform the operation
+      required: true
+      schema:
+        type: string
+        enum:
+          - ORGANIZATION_ADMIN
+          - SITE_OWNER
+          - REMOTE_USER
+        example: ORGANIZATION_ADMIN
+        description: |
+          User role that can be given for a grant
+    x-version:
+      name: x-version
+      in: header
+      description: Specifies the version of the resource
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    number:
+      name: number
+      in: query
+      description: Index of page to be returned. Number of available pages is returned in response body property page.totalPages.
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+    size:
+      name: size
+      in: query
+      description: Specifies the number of elements in a page. Maximum number of resources to be returned per page. The service might return less resources.
+      schema:
+        type: integer
+        default: 10
+        maximum: 100
+    sort:
+      name: sort
+      in: query
+      description: |
+        Specifies the fields to sort the results by.
+
+        Ex: GET /resources?sort=-color,+name : Sorts the results based on descending color order and ascending name order.
+      schema:
+        type: string
+    filter:
+      name: filter
+      in: query
+      required: false
+      description: |
+        JSON string allowing to filter for the following optional fields and operations.
+
+          JSON string can contain following fields:
+        * id
+        E.g.: {"id":275}
+        * name
+        E.g.: {"name":"CISCO"}            
+        * parentId
+        E.g.: {"parentId":263}            
+
+        In the following, an unencoded example filter value is shown, to return the connector instances for given asset and parameters. 
+
+            { 
+              "name":"CISCO"
+            }
+      schema:
+        type: string
+    IfMatch:
+      name: If-Match
+      in: header
+      description: Specifies the version of the resource which will be used for optimistic concurrency control
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      description: Specifies the ETag of the resource
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+  responses:
+    Created:
+      description: Resource is created
+      headers:
+        Location:
+          schema:
+            type: string
+          description: URI to the resource.
+        x-version:
+          schema:
+            type: integer
+          description: Resource version used for concurrency control.
+    Accepted:
+      description: Request is accepted
+      headers:
+        x-version:
+          schema:
+            type: integer
+          description: Resource version used for concurrency control.
+    BadRequest:
+      description: |
+        The status code implies that some parts of the provided information in the request are not valid. Possible errors:
+        <br>
+        <table>
+          <colgroup>
+            <col span="1" style="width: 30%;">
+            <col span="1" style="width: 70%;">
+          </colgroup>
+          <tr>
+            <th align="left">Code Suffix</th>
+            <th align="left">Message (parametrized)</th>
+          </tr>
+          <tr>
+            <td>invalidParameter</td>
+            <td>Parameter is invalid.</td>
+          </tr>
+        </table>
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Errors'
+    ResourceNotFound:
+      description: |
+        The status code implies that requested resource does not exist or unreachable for the requester. Possible errors:
+        <br>
+        <table>
+          <colgroup>
+            <col span="1" style="width: 30%;">
+            <col span="1" style="width: 70%;">
+          </colgroup>
+          <tr>
+            <th align="left">Code Suffix</th>
+            <th align="left">Message (parametrized)</th>
+          </tr>
+          <tr>
+            <td>notFound</td>
+            <td>Requested resource is not found.</td>
+          </tr>
+        </table>
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Errors'
+    ResourceConflict:
+      description: |
+        The status code implies that requested resource is updated by a third party. Possible errors:
+        <br>
+        <table>
+          <colgroup>
+            <col span="1" style="width: 30%;">
+            <col span="1" style="width: 70%;">
+          </colgroup>
+          <tr>
+            <th align="left">Code Suffix</th>
+            <th align="left">Message (parametrized)</th>
+          </tr>
+          <tr>
+            <td>conflict</td>
+            <td>Resource is updated.</td>
+          </tr>
+        </table>
+      headers:
+        x-version:
+          schema:
+            type: integer
+          description: Resource version used for concurrency control.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Errors'
+    Default:
+      description: Other error with any status code and response body format.
+  schemas:
+    TenantId:
+      description: The ID of a tenant.
+      type: string
+      pattern: '[a-zA-Z0-9-_.]+'
+      example: myTenant
+      minLength: 1
+      maxLength: 255
+    ResourceTenant:
+      description: A JSON document specifying a tenant
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantId'
+        serviceProvider:
+          type: object
+          properties:
+            organizationId:
+              $ref: '#/components/schemas/BaseConnector/properties/organizationId'
+          required:
+            - organizationId
+      required:
+        - id
+        - serviceProvider
+    ProductId:
+      description: The ID of a product tree node.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    ProductName:
+      description: Name of the product node.
+      type: string
+      example: PLC
+      minLength: 1
+      maxLength: 255
+    RequestBodyToCreateProduct:
+      description: A JSON document specifying a product in tree
+      type: object
+      properties:
+        name:
+          $ref: '#/components/schemas/ProductName'
+        parentId:
+          $ref: '#/components/schemas/ProductId'
+      required:
+        - name
+        - parentId
+    RequestBodyToChangeProductName:
+      description: A JSON document specifying a request to change name of a product
+      type: object
+      properties:
+        newName:
+          $ref: '#/components/schemas/ProductName'
+      required:
+        - newName
+    RequestBodyToMoveProduct:
+      description: A JSON document specifying a request to move a product to a different parent product
+      type: object
+      properties:
+        newParentId:
+          $ref: '#/components/schemas/ProductId'
+      required:
+        - newParentId
+    RequestBodyToCloneProduct:
+      description: A JSON document specifying a request to clone a product
+      type: object
+      properties:
+        newParentId:
+          $ref: '#/components/schemas/ProductId'
+      required:
+        - newParentId
+    PagedResourceProductListResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductNode'
+    ProductNode:
+      description: A JSON document specifying a product in tree
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ProductId'
+        name:
+          $ref: '#/components/schemas/ProductName'
+        parentId:
+          $ref: '#/components/schemas/ProductId'
+      required:
+        - id
+        - name
+    NodeId:
+      description: The ID of a tree node.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    NodeName:
+      description: Name of the node.
+      type: string
+      example: Europe
+      minLength: 1
+      maxLength: 255
+    RequestBodyToCreateNode:
+      description: A JSON document specifying a node in tree
+      type: object
+      properties:
+        name:
+          $ref: '#/components/schemas/NodeName'
+        parentId:
+          $ref: '#/components/schemas/NodeId'
+      required:
+        - name
+        - parentId
+    PagedResourceNodeListResponse:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+    Node:
+      description: A JSON document specifying a node in tree
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/NodeId'
+        name:
+          $ref: '#/components/schemas/NodeName'
+        parentId:
+          $ref: '#/components/schemas/NodeId'
+      required:
+        - id
+        - name
+    RequestBodyToChangeNodeName:
+      description: A JSON document specifying a request to change name of a node
+      type: object
+      properties:
+        newName:
+          $ref: '#/components/schemas/NodeName'
+      required:
+        - newName
+    RequestBodyToMoveNode:
+      description: A JSON document specifying a request to move a node to a different parent node
+      type: object
+      properties:
+        newParentId:
+          $ref: '#/components/schemas/NodeId'
+      required:
+        - newParentId
+    SiteId:
+      description: The ID of a tree site.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    RequestBodyToCreateSite:
+      description: A JSON document specifying a site in tree
+      type: object
+      properties:
+        name:
+          $ref: '#/components/schemas/SiteName'
+        nodeId:
+          $ref: '#/components/schemas/NodeId'
+      required:
+        - name
+        - nodeId
+    PagedResourceSiteListResponse:
+      type: object
+      properties:
+        sites:
+          type: array
+          items:
+            $ref: '#/components/schemas/Site'
+    Site:
+      description: A JSON document specifying a site in tree
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/SiteId'
+        name:
+          $ref: '#/components/schemas/SiteName'
+        nodeId:
+          $ref: '#/components/schemas/NodeId'
+        connectivityLock:
+          $ref: '#/components/schemas/ConnectivityLockStatus'
+      required:
+        - id
+        - name
+        - nodeId
+        - connectivityLock
+    RequestBodyToChangeSiteName:
+      description: A JSON document specifying a request to change name of a site
+      type: object
+      properties:
+        newName:
+          $ref: '#/components/schemas/SiteName'
+      required:
+        - newName
+    RequestBodyToMoveSite:
+      description: A JSON document specifying a request to move a site to a different node
+      type: object
+      properties:
+        newNodeId:
+          $ref: '#/components/schemas/NodeId'
+      required:
+        - newNodeId
+    RequestBodyToCloneSite:
+      description: A JSON document specifying a request to clone a site to a different node
+      type: object
+      properties:
+        newNodeId:
+          $ref: '#/components/schemas/NodeId'
+      required:
+        - newNodeId
+    SiteName:
+      description: Name of the site.
+      type: string
+      example: Berlin
+      minLength: 1
+      maxLength: 255
+    GatewayId:
+      description: The ID of a gateway.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    GatewayName:
+      description: Name of the gateway.
+      type: string
+      example: Industrial PC
+      minLength: 1
+      maxLength: 255
+    RequestBodyToCreateGateway:
+      description: A JSON document specifying a gateway in tree
+      type: object
+      properties:
+        name:
+          $ref: '#/components/schemas/GatewayName'
+        siteId:
+          $ref: '#/components/schemas/SiteId'
+        productId:
+          $ref: '#/components/schemas/ProductId'
+      required:
+        - name
+        - siteId
+        - productId
+    PagedResourceGatewayListResponse:
+      type: object
+      properties:
+        gateways:
+          type: array
+          items:
+            $ref: '#/components/schemas/Gateway'
+    Gateway:
+      description: A JSON document specifying a gateway in tree
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/GatewayId'
+        name:
+          $ref: '#/components/schemas/GatewayName'
+        siteId:
+          $ref: '#/components/schemas/SiteId'
+        connectivityLock:
+          $ref: '#/components/schemas/ConnectivityLockStatus'
+      required:
+        - id
+        - name
+        - siteId
+        - connectivityLock
+    RequestBodyToChangeGatewayName:
+      description: A JSON document specifying a request to change name of a gateway
+      type: object
+      properties:
+        newName:
+          $ref: '#/components/schemas/GatewayName'
+      required:
+        - newName
+    RequestBodyToMoveGateway:
+      description: A JSON document specifying a request to move a gateway to a different site
+      type: object
+      properties:
+        newSiteId:
+          $ref: '#/components/schemas/SiteId'
+      required:
+        - newSiteId
+    RequestBodyToCopyGateway:
+      description: A JSON document specifying a request to copy a gateway
+      type: object
+      properties:
+        newSiteId:
+          $ref: '#/components/schemas/SiteId'
+      required:
+        - newSiteId
+    SecondaryTargetId:
+      description: The ID of a secondary target.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    SecondaryTargetName:
+      description: Name of the secondary target.
+      type: string
+      example: PLC
+      minLength: 1
+      maxLength: 255
+    Address:
+      description: IP or address of the secondary target.
+      type: string
+      example: 192.168.1.10
+      minLength: 1
+      maxLength: 255
+    RequestBodyToCreateSecondaryTarget:
+      description: A JSON document specifying a secondary target in tree
+      type: object
+      properties:
+        name:
+          $ref: '#/components/schemas/SecondaryTargetName'
+        address:
+          $ref: '#/components/schemas/Address'
+        productId:
+          $ref: '#/components/schemas/ProductId'
+        gatewayId:
+          $ref: '#/components/schemas/GatewayId'
+      required:
+        - name
+        - address
+        - productId
+        - gatewayId
+    PagedResourceHostListResponse:
+      type: object
+      properties:
+        secondaryTargets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Host'
+    Host:
+      description: A JSON document specifying a secondary target in tree
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/SecondaryTargetId'
+        name:
+          $ref: '#/components/schemas/SecondaryTargetName'
+        address:
+          $ref: '#/components/schemas/Address'
+        productId:
+          $ref: '#/components/schemas/ProductId'
+        connectivityLock:
+          $ref: '#/components/schemas/ConnectivityLockStatus'
+        gatewayId:
+          $ref: '#/components/schemas/GatewayId'
+      required:
+        - id
+        - name
+        - address
+        - productId
+        - connectivityLock
+        - gatewayId
+    RequestBodyToChangeSecondaryTargetName:
+      description: A JSON document specifying a request to change name of a secondary target
+      type: object
+      properties:
+        newName:
+          $ref: '#/components/schemas/SecondaryTargetName'
+      required:
+        - newName
+    RequestBodyToChangeProduct:
+      description: A JSON document specifying a request to change product of a secondary target
+      type: object
+      properties:
+        newProductId:
+          $ref: '#/components/schemas/ProductId'
+      required:
+        - newProductId
+    RequestBodyToCreateConnectorAssignment:
+      description: A JSON document specifying a request to create a connector assignment
+      type: object
+      properties:
+        operatorInitiated:
+          type: boolean
+          description: Indicates if the assignment is initiated by the operator
+          default: false
+        sourceEndpointId:
+          $ref: '#/components/schemas/Target/properties/id'
+        destinationEndpointId:
+          $ref: '#/components/schemas/Target/properties/id'
+        connectorId:
+          $ref: '#/components/schemas/ConnectorId'
+      required:
+        - operatorInitiated
+        - destinationEndpointId
+        - connectorId
+    PagedResourceConnectorAssignmentListResponse:
+      type: object
+      properties:
+        connectorAssignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Target'
+    Target:
+      description: A JSON document specifying a connector assignment
+      type: object
+      properties:
+        id:
+          description: The ID of a resource
+          type: string
+          example: a1b2c3d4
+          maxLength: 255
+        sourceEndpointId:
+          $ref: '#/components/schemas/Target/properties/id'
+        destinationEndpointId:
+          $ref: '#/components/schemas/Target/properties/id'
+        connector:
+          $ref: '#/components/schemas/ResourceConnector'
+      required:
+        - id
+        - sourceEndpointId
+        - destinationEndpointId
+        - connector
+    ClientId:
+      description: The ID of a client.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    ClientOwnerType:
+      type: string
+      enum:
+        - USER
+        - GATEWAY
+        - TECHNICAL_USER
+        - GLOBAL_TECHNICAL_USER
+      example: GATEWAY
+      description: |
+        Type of a client owner
+    ClientOwnerId:
+      description: The ID of the client's owner
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    ClientOwnerName:
+      description: 'The human readable name of the client''s owner. In a user client''s case it is the full name of the user. In case of a host client, it is a combination of the host name and the gateway.'
+      type: string
+      example: Factory Gateway / Host
+      maxLength: 255
+    PagedResourceClientListResponse:
+      type: object
+      properties:
+        clients:
+          type: array
+          items:
+            $ref: '#/components/schemas/Client'
+    RequestBodyToCreateClientPackage:
+      description: A JSON document specifying a request to prepare a client package
+      type: object
+      properties:
+        packageType:
+          $ref: '#/components/schemas/ClientPackageType'
+        clientVersion:
+          $ref: '#/components/schemas/ClientVersion'
+      required:
+        - packageType
+    RequestBodyToCreateClientConfiguration:
+      description: A JSON document specifying a request to build a client configuration
+      type: object
+      properties:
+        packageType:
+          $ref: '#/components/schemas/ClientConfigPackageType'
+        clientVersion:
+          $ref: '#/components/schemas/ClientVersion'
+        configCustomization:
+          type: object
+          description: A caller provided custom config that will be included within the generated config.
+          properties:
+            rootDirectory:
+              type: string
+              example: 'C:\mrs-client\'
+            maxRootFolderSize:
+              type: integer
+              example: 10000000
+            proxy:
+              type: object
+              properties:
+                address:
+                  type: string
+                  example: 10.0.0.99
+                port:
+                  type: string
+                  example: '8080'
+              required:
+                - address
+                - port
+      required:
+        - packageType
+    RequestBodyToCreateClientBinary:
+      description: A JSON document specifying a request to prepare a client binary
+      type: object
+      properties:
+        packageType:
+          $ref: '#/components/schemas/ClientBinaryPackageType'
+        clientVersion:
+          $ref: '#/components/schemas/ClientVersion'
+      required:
+        - packageType
+    Client:
+      description: A JSON document specifying a client
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ClientId'
+        ownerType:
+          $ref: '#/components/schemas/ClientOwnerType'
+        ownerId:
+          $ref: '#/components/schemas/ClientOwnerId'
+      required:
+        - id
+        - ownerType
+        - ownerId
+    ClientVersion:
+      description: 'Version of the client. Used to specify the version of the client for which the configuration should be downloaded. If it is set as *latest*, the client version is assumed to be the latest one. If the specified version is not found a Not Found(404) error occurs.'
+      type: string
+      example: 1.1.7
+      maxLength: 255
+    ClientPackageType:
+      type: string
+      enum:
+        - X64_WINDOWS10
+        - X64_DEBIAN9
+        - X64_DEBIAN10
+        - X86_DEBIAN10
+        - AARCH64_DEBIAN10
+      example: X64_WINDOWS10
+      description: |
+        Target platform for the client
+    ClientConfigPackageType:
+      type: string
+      enum:
+        - X64_WINDOWS10
+        - X64_DEBIAN9
+        - X64_DEBIAN10
+        - X86_DEBIAN10
+        - AARCH64_DEBIAN10
+        - X64_DOCKER_IMG
+        - X64_INDUSTRIALEDGE_APP
+      example: X64_WINDOWS10
+      description: |
+        Target platform for the client
+    ClientBinaryPackageType:
+      type: string
+      enum:
+        - X64_WINDOWS10
+        - X64_DEBIAN9
+        - X64_DEBIAN10
+        - X86_DEBIAN10
+        - AARCH64_DEBIAN10
+        - X64_DOCKER_IMG
+        - X64_INDUSTRIALEDGE_APP
+      example: X64_WINDOWS10
+      description: |
+        Target platform for the client
+    TunnelId:
+      description: The ID of a connector assignment.
+      type: string
+      example: d1e2f3g4
+      maxLength: 255
+    TunnelStatus:
+      type: string
+      enum:
+        - READY
+        - ESTABLISHED
+        - TERMINATED
+      example: READY
+      description: |
+        Tunnel status
+    RequestBodyToCreateTunnel:
+      description: A JSON document specifying a request to create a tunnel
+      type: object
+      properties:
+        requesterUserId:
+          $ref: '#/components/schemas/ResourceUserSession/properties/userId'
+        connectorAssignmentId:
+          $ref: '#/components/schemas/TunnelId'
+        customData:
+          type: object
+          example:
+            puSourceInterfaces:
+              - 192.168.1.10
+          description: |
+            Custom data for protocol specific requirements. For detailed information for *customData* for connector protocol, please check MindSphere Developer Documentation.
+            e.g.: For *PU* '{"puSourceInterfaces": ["192.168.1.10"]}'
+      required:
+        - requesterUserId
+        - connectorAssignmentId
+    PagedResourceTunnelListResponse:
+      type: object
+      properties:
+        tunnels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tunnel'
+    Tunnel:
+      description: A JSON document specifying a tunnel
+      type: object
+      properties:
+        id:
+          description: The ID of a tunnel.
+          type: string
+          example: a1b2c3d4
+          maxLength: 255
+        status:
+          $ref: '#/components/schemas/TunnelStatus'
+        startedAt:
+          $ref: '#/components/schemas/Timestamp'
+        finishedAt:
+          $ref: '#/components/schemas/Timestamp'
+        connectorAssignment:
+          $ref: '#/components/schemas/Target'
+      required:
+        - id
+        - status
+        - startedAt
+        - connectorAssignment
+    PagedResourceGatewayHealthListResponse:
+      type: object
+      properties:
+        gateways:
+          type: array
+          items:
+            $ref: '#/components/schemas/GatewayHealth'
+    GatewayHealth:
+      description: A JSON document specifying a gateway
+      type: object
+      properties:
+        gatewayId:
+          $ref: '#/components/schemas/GatewayId'
+        reportedAt:
+          $ref: '#/components/schemas/Timestamp'
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+      required:
+        - gatewayId
+        - status
+    PagedResourceSecondaryTargetHealthListResponse:
+      type: object
+      properties:
+        secondaryTargets:
+          type: array
+          items:
+            $ref: '#/components/schemas/HostHealth'
+    HostHealth:
+      description: A JSON document specifying a secondary target
+      type: object
+      properties:
+        secondaryTargetId:
+          $ref: '#/components/schemas/SecondaryTargetId'
+        reportedAt:
+          $ref: '#/components/schemas/Timestamp'
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentHealth'
+      required:
+        - secondaryTargetId
+        - status
+    PagedResourceClientHealthListResponse:
+      type: object
+      properties:
+        clients:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientHealth'
+    ClientHealth:
+      description: A JSON document specifying a secondary targets
+      type: object
+      properties:
+        clientId:
+          $ref: '#/components/schemas/ClientId'
+        reportedAt:
+          $ref: '#/components/schemas/Timestamp'
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentHealth'
+      required:
+        - clientId
+        - status
+    HealthStatus:
+      type: string
+      enum:
+        - UNKNOWN
+        - OK
+        - WARNING
+        - ERROR
+      example: OK
+      description: |
+        Health status
+    ComponentHealth:
+      description: A JSON document specifying a component health
+      type: object
+      properties:
+        componentId:
+          $ref: '#/components/schemas/ComponentId'
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        timestamp:
+          $ref: '#/components/schemas/Timestamp'
+        message:
+          description: Health related message regarding the component.
+          type: string
+          example: Healthy
+          minLength: 1
+          maxLength: 1000
+      required:
+        - componentId
+    ComponentId:
+      description: The ID of a component.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    ConnectorId:
+      description: The ID of a connector.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+    ConnectorName:
+      description: Name of the connector.
+      type: string
+      example: My connector
+      minLength: 1
+      maxLength: 255
+    ConnectorType:
+      type: string
+      enum:
+        - DTT
+        - RDP
+        - VNC
+        - SSH
+        - WEB_APP
+        - PU
+        - DTT_R
+      example: DTT
+      description: |
+        Connector type
+    PagedResourceConnectorListResponse:
+      type: object
+      properties:
+        connectors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceConnector'
+    ResourceConnector:
+      type: object
+      description: A JSON document specifying a connector
+      allOf:
+        - oneOf:
+            - $ref: '#/components/schemas/DttConnector'
+            - $ref: '#/components/schemas/ProxyUnawareConnector'
+            - $ref: '#/components/schemas/RdpConnector'
+            - $ref: '#/components/schemas/WebAppConnector'
+            - $ref: '#/components/schemas/SshConnector'
+            - $ref: '#/components/schemas/VncConnector'
+          discriminator:
+            propertyName: type
+        - type: object
+    RequestBodyToChangeConnectorName:
+      description: A JSON document specifying a request to change name of a connector
+      type: object
+      properties:
+        newName:
+          $ref: '#/components/schemas/ConnectorName'
+      required:
+        - newName
+    RequestBodyToChangeConnectorDescription:
+      description: A JSON document specifying a request to change description of a connector
+      type: object
+      properties:
+        newDescription:
+          $ref: '#/components/schemas/ConnectorDescription'
+      required:
+        - newDescription
+    RequestBodyToChangeConnectorIdleTimeout:
+      description: A JSON document specifying a request to change idle timeout configuration of a connector
+      type: object
+      properties:
+        seconds:
+          type: integer
+          description: Number of seconds before the connection times out
+          minimum: 600
+          default: 600
+      required:
+        - seconds
+    RequestBodyToChangeConnectorParameters:
+      description: A JSON document specifying a request to change parameters of a connector
+      type: object
+      properties:
+        newParameters:
+          oneOf:
+            - $ref: '#/components/schemas/DttParameters'
+            - $ref: '#/components/schemas/PUParameters'
+            - $ref: '#/components/schemas/RdpParameters'
+            - $ref: '#/components/schemas/WebAppParameters'
+            - $ref: '#/components/schemas/SshParameters'
+            - $ref: '#/components/schemas/VncParameters'
+      required:
+        - newParameters
+    ConnectorIdRo:
+      description: The ID of a connector.
+      type: string
+      example: a1b2c3d4
+      maxLength: 255
+      readOnly: true
+    ConnectorDescription:
+      description: Description of the connector.
+      type: string
+      example: My connector
+      maxLength: 255
+    ConnectorPermissionRequired:
+      description: The connector forces the permission to be acquired from a responsible user
+      type: boolean
+      default: false
+    ConnectorIdleTimeout:
+      description: 'A JSON document specifying a connection idle timeout, after which the connection is terminated by the system'
+      type: object
+      properties:
+        infinite:
+          type: boolean
+          description: Indicate whether the timeout should be infinite
+          default: false
+        seconds:
+          type: integer
+          description: Number of seconds before the connection times out
+          minimum: 600
+          default: 600
+      required:
+        - infinite
+    BaseConnector:
+      description: A JSON document specifying common attributes of a connector
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ConnectorIdRo'
+        organizationId:
+          description: The ID of an organization.
+          type: string
+          example: a1b2c3d4
+          maxLength: 255
+        name:
+          $ref: '#/components/schemas/ConnectorName'
+        description:
+          $ref: '#/components/schemas/ConnectorDescription'
+        permissionRequired:
+          $ref: '#/components/schemas/ConnectorPermissionRequired'
+        idleTimeout:
+          $ref: '#/components/schemas/ConnectorIdleTimeout'
+        type:
+          $ref: '#/components/schemas/ConnectorType'
+      discriminator:
+        propertyName: type
+        mapping:
+          DTT: '#/components/schemas/DttConnector'
+          PU: '#/components/schemas/ProxyUnawareConnector'
+          RDP: '#/components/schemas/RdpConnector'
+          WEB_APP: '#/components/schemas/WebAppConnector'
+          SSH: '#/components/schemas/SshConnector'
+          VNC: '#/components/schemas/VncConnector'
+      required:
+        - id
+        - nodeId
+        - name
+        - type
+    DttConnector:
+      description: A JSON document specifying a DTT connector
+      allOf:
+        - $ref: '#/components/schemas/BaseConnector'
+        - type: object
+          properties:
+            parameters:
+              $ref: '#/components/schemas/DttParameters'
+      required:
+        - parameters
+    DttParameters:
+      description: A JSON document specifying a DTT connector parameters
+      type: object
+      properties:
+        mappings:
+          type: array
+          items:
+            type: object
+            oneOf:
+              - $ref: '#/components/schemas/DTTPortRange'
+              - $ref: '#/components/schemas/DTTSinglePort'
+            discriminator:
+              propertyName: type
+      required:
+        - mappings
+    BaseDTTPortMapping:
+      description: A JSON document specifying common properties of a DTT port mapping
+      properties:
+        protocol:
+          $ref: '#/components/schemas/NetworkProtocol'
+        type:
+          $ref: '#/components/schemas/PortMappingType'
+      discriminator:
+        propertyName: type
+        mapping:
+          RANGE: '#/components/schemas/DTTPortRange'
+          SINGLE: '#/components/schemas/DTTSinglePort'
+      required:
+        - protocol
+        - type
+    DTTPortRange:
+      description: A JSON document specifying a DTT port range mapping
+      allOf:
+        - $ref: '#/components/schemas/BaseDTTPortMapping'
+        - type: object
+          properties:
+            listener:
+              $ref: '#/components/schemas/PortRange'
+            target:
+              $ref: '#/components/schemas/PortRange'
+      required:
+        - listener
+        - target
+    DTTSinglePort:
+      description: A JSON document specifying a DTT single port mapping
+      allOf:
+        - $ref: '#/components/schemas/BaseDTTPortMapping'
+        - type: object
+          properties:
+            listener:
+              $ref: '#/components/schemas/SinglePort'
+            target:
+              $ref: '#/components/schemas/SinglePort'
+      required:
+        - listener
+        - target
+    ProxyUnawareConnector:
+      description: A JSON document specifying a Proxy Unaware connector
+      allOf:
+        - $ref: '#/components/schemas/BaseConnector'
+        - type: object
+          properties:
+            parameters:
+              $ref: '#/components/schemas/PUParameters'
+      required:
+        - parameters
+    PUParameters:
+      description: A JSON document specifying a Proxy Unaware connector parameters
+      type: object
+      properties:
+        mappings:
+          type: array
+          items:
+            type: object
+            oneOf:
+              - $ref: '#/components/schemas/PUPortRange'
+              - $ref: '#/components/schemas/PUSinglePort'
+            discriminator:
+              propertyName: type
+        requestSourceInterface:
+          description: Force users to request source interfaces from client
+          type: boolean
+          default: false
+        sourceInterface:
+          description: IPv4 address of the source interface (the default value is 127.0.0.1).
+          type: string
+          default: 127.0.0.1
+      required:
+        - mappings
+    BasePUPortMapping:
+      description: A JSON document specifying common properties of a PU port mapping
+      properties:
+        protocol:
+          $ref: '#/components/schemas/NetworkProtocol'
+        type:
+          $ref: '#/components/schemas/PortMappingType'
+      discriminator:
+        propertyName: type
+        mapping:
+          RANGE: '#/components/schemas/PUPortRange'
+          SINGLE: '#/components/schemas/PUSinglePort'
+      required:
+        - protocol
+        - type
+    PUPortRange:
+      description: A JSON document specifying a Proxy Unaware port range mapping
+      allOf:
+        - $ref: '#/components/schemas/BasePUPortMapping'
+        - $ref: '#/components/schemas/PortRange'
+    PUSinglePort:
+      description: A JSON document specifying a Proxy Unaware single port mapping
+      allOf:
+        - $ref: '#/components/schemas/BasePUPortMapping'
+        - $ref: '#/components/schemas/SinglePort'
+    RdpConnector:
+      description: A JSON document specifying a RDP connector
+      allOf:
+        - $ref: '#/components/schemas/BaseConnector'
+        - type: object
+          properties:
+            parameters:
+              $ref: '#/components/schemas/RdpParameters'
+      required:
+        - parameters
+    RdpParameters:
+      description: A JSON document specifying a RDP connector parameters
+      type: object
+      properties:
+        listenerPort:
+          $ref: '#/components/schemas/Port'
+        rdpProperties:
+          type: object
+          properties:
+            authDomain:
+              type: string
+              maxLength: 255
+              example: domain
+            userName:
+              type: string
+              maxLength: 255
+              example: myUsername
+            bitDepth:
+              type: number
+              minimum: 0
+              maximum: 32
+            localFileShare:
+              type: string
+              maxLength: 255
+              example: fileshare
+            resolution:
+              type: string
+              maxLength: 255
+              example: 1024x768
+            useMultimon:
+              type: number
+              minimum: 0
+              maximum: 1
+      required:
+        - listenerPort
+    WebAppConnector:
+      description: A JSON document specifying a WEB Connector connector
+      allOf:
+        - $ref: '#/components/schemas/BaseConnector'
+        - type: object
+          properties:
+            parameters:
+              $ref: '#/components/schemas/WebAppParameters'
+      required:
+        - parameters
+    WebAppParameters:
+      description: A JSON document specifying a WEB Connector connector parameters
+      type: object
+      properties:
+        scheme:
+          type: string
+          enum:
+            - http
+            - https
+        port:
+          $ref: '#/components/schemas/Port'
+        path:
+          type: string
+          maxLength: 1000
+          example: /my/path/to/index.html
+      required:
+        - scheme
+        - port
+        - path
+    SshConnector:
+      description: A JSON document specifying an SSH connector
+      allOf:
+        - $ref: '#/components/schemas/BaseConnector'
+        - type: object
+          properties:
+            parameters:
+              $ref: '#/components/schemas/SshParameters'
+      required:
+        - parameters
+    SshParameters:
+      description: A JSON document specifying an SSH connector parameters
+      type: object
+      properties:
+        listenerPort:
+          $ref: '#/components/schemas/Port'
+        targetPort:
+          $ref: '#/components/schemas/Port'
+      required:
+        - listenerPort
+        - targetPort
+    VncConnector:
+      description: A JSON document specifying a VNC connector
+      allOf:
+        - $ref: '#/components/schemas/BaseConnector'
+        - type: object
+          properties:
+            parameters:
+              $ref: '#/components/schemas/VncParameters'
+      required:
+        - parameters
+    VncParameters:
+      description: A JSON document specifying a VNC connector parameters
+      type: object
+      properties:
+        listenerPort:
+          $ref: '#/components/schemas/Port'
+        targetPort:
+          $ref: '#/components/schemas/Port'
+      required:
+        - listenerPort
+        - targetPort
+    PortRange:
+      type: object
+      properties:
+        portRange:
+          type: object
+          properties:
+            first:
+              $ref: '#/components/schemas/Port'
+            last:
+              $ref: '#/components/schemas/Port'
+          required:
+            - first
+            - last
+    SinglePort:
+      type: object
+      properties:
+        singlePort:
+          $ref: '#/components/schemas/Port'
+    Port:
+      type: number
+      minimum: 0
+      maximum: 65535
+      example: 5000
+    NetworkProtocol:
+      type: string
+      enum:
+        - TCP
+        - UDP
+    PortMappingType:
+      type: string
+      enum:
+        - RANGE
+        - SINGLE
+    ResourceUserSession:
+      description: A JSON document specifying a user session info
+      type: object
+      properties:
+        userId:
+          description: The ID of the user.
+          type: string
+          example: a1b2c3d4
+          maxLength: 255
+        tenantId:
+          $ref: '#/components/schemas/TenantId'
+        email:
+          description: Email of the user.
+          type: string
+          pattern: '^[a-zA-Z0-9._%+&*-]+(?:\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,7}$'
+          example: john_doe@server.org
+          minLength: 1
+          maxLength: 255
+        firstname:
+          description: Firstname for the user.
+          type: string
+          example: john
+          minLength: 1
+          maxLength: 255
+        lastname:
+          description: Lastname for the user.
+          type: string
+          example: doe
+          minLength: 1
+          maxLength: 255
+        serviceOwner:
+          type: boolean
+        homeOrganization:
+          type: object
+          properties:
+            id:
+              $ref: '#/components/schemas/BaseConnector/properties/organizationId'
+            name:
+              description: Name of the organization.
+              type: string
+              example: Carrots Inc
+              minLength: 1
+              maxLength: 255
+        account:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - ACTIVE
+                - SUSPENDED
+                - EXPIRED
+                - RESTRICTED
+              example: ACTIVE
+              description: |
+                Account status
+            neverExpires:
+              type: boolean
+            expiresAt:
+              $ref: '#/components/schemas/Timestamp'
+          required:
+            - status
+            - neverExpires
+      required:
+        - userId
+        - tenantId
+        - organizationId
+        - email
+        - account
+    ConnectivityLockStatus:
+      type: string
+      enum:
+        - UNLOCKED
+        - LOCKED
+      example: UNLOCKED
+      description: |
+        Connectivity lock status
+    Timestamp:
+      description: 'A datetime with a format according to ISO 8601 extended date/time format ''YYYY-MM-DDThh:mm:ss.sssZ''.'
+      type: string
+      format: date-time
+      example: '2021-08-25T08:55:18.687Z'
+    Metadata:
+      type: object
+      properties:
+        version:
+          type: string
+          description: Resource version used for concurrency control.
+          example: '1'
+      readOnly: true
+    Page:
+      type: object
+      properties:
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+        elements:
+          type: integer
+        totalElements:
+          type: integer
+    Errors:
+      description: Error response body model.
+      type: object
+      properties:
+        errors:
+          description: Concrete error codes and messages are defined at operation error response descriptions in this API specification.
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                description: Unique error code. Every code is bound to one (parametrized) message.
+                type: string
+                format: remoteservices.<context>.<suffix>
+                example: remoteservices.users.exampleCode
+              correlationId:
+                description: Logging correlation ID for debugging purposes.
+                type: string
+                example: 0bff7e7a-cd25-4576-9908-4180ef086174
+              title:
+                description: Human readable error message in English.
+                type: string
+                example: Example error message with parameter value 100
+              detail:
+                description: |
+                  In case an error message is parametrized, the parameter names and values are returned for, e.g., localization purposes. The parametrized error messages are defined at the operation error response descriptions in this API specification. Parameters are denoted by named placeholders '{\<parameter name\>}' in the  message specifications. At runtime, returned message placeholders are substituted by actual parameter values.
+                type: array
+                items:
+                  description: Message parameter
+                  type: object
+                  properties:
+                    name:
+                      description: Name of message parameter as specified in parametrized error message.
+                      type: string
+                    value:
+                      description: Value of message parameter as substituted in returned error message.
+                      type: string
+                example:
+                  - name: exampleParameterName
+                    value: '100'
+  securitySchemes:
+    connexus_roles:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.roles.internal: |
+              Grant user role of internal (technical) user
+
+              "permissions": [
+                "remoteservices.orguser",
+                "remoteservices.serviceowner"
+              ]
+            remoteservices.roles.serviceowner: |
+              Grant user role of service owner
+
+              "permissions": [
+                "remoteservices.orguser",
+                "remoteservices.serviceowner"
+              ]
+            remoteservices.roles.orguser: |
+              Grant user role of organization user
+
+              "permissions": [
+                "remoteservices.orguser"
+              ]
+    tenant_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    organization_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    product_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    node_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    site_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    gateway_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    secondary_target_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    client_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    endpoint_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    connector_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    connector_assignment_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    tunnel_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    monitoring_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
+    session_management:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: 'https://oauth.simple.api/authorization'
+          tokenUrl: 'https://oauth.simple.api/token'
+          scopes:
+            remoteservices.serviceowner: Grant user permission to access remote services as service owner
+            remoteservices.orguser: Grant user permission to access remote services as organization user
