@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import VariableInput from './VariableInput';
 import VariableTextarea from './VariableTextarea';
 import Tooltip from './Tooltip';
+import CodeEditor from './CodeEditor';
 
 interface RequestPanelProps {
   setResponse: (response: ApiResponse | null) => void;
@@ -34,7 +35,7 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const [request, setLocalRequest] = useState<ApiRequest | null>(null);
-  const [activeSection, setActiveSection] = useState<'params' | 'headers' | 'body' | 'auth'>('params');
+  const [activeSection, setActiveSection] = useState<'params' | 'headers' | 'body' | 'auth' | 'preScript' | 'script'>('params');
   const [batchEditModal, setBatchEditModal] = useState<{ open: boolean; field: 'headers' | 'params' | null }>({ open: false, field: null });
   const [batchEditText, setBatchEditText] = useState('');
   const [codeModal, setCodeModal] = useState<{ open: boolean; activeLanguage: string; copied: boolean }>({ open: false, activeLanguage: 'curl', copied: false });
@@ -145,6 +146,21 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
     }
   }, [request, activeTab, updateTab]);
 
+  // Rebuild URL query string from params array (no encoding for display)
+  const rebuildUrlFromParams = useCallback((params: KeyValue[]) => {
+    if (!request) return;
+    const baseUrl = request.url.split('?')[0];
+    const enabledWithKey = params.filter(p => p.enabled && p.key);
+    if (enabledWithKey.length > 0) {
+      const qs = enabledWithKey
+        .map(p => `${p.key}=${p.value}`)
+        .join('&');
+      handleChange({ url: `${baseUrl}?${qs}`, params });
+    } else {
+      handleChange({ url: baseUrl, params });
+    }
+  }, [request, handleChange]);
+
   // Get inherited auth from collection or folder
   const getInheritedAuth = useCallback(() => {
     if (!activeTab?.collectionId) return null;
@@ -242,21 +258,32 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
   const addKeyValue = (field: 'headers' | 'params') => {
     if (!request) return;
     const newKv: KeyValue = { id: uuidv4(), key: '', value: '', enabled: true };
-    handleChange({ [field]: [...request[field], newKv] });
+    const newItems = [...request[field], newKv];
+    if (field === 'params') {
+      rebuildUrlFromParams(newItems);
+    } else {
+      handleChange({ [field]: newItems });
+    }
   };
 
   const updateKeyValue = (field: 'headers' | 'params', id: string, updates: Partial<KeyValue>) => {
     if (!request) return;
-    handleChange({
-      [field]: request[field].map(kv => kv.id === id ? { ...kv, ...updates } : kv),
-    });
+    const newItems = request[field].map(kv => kv.id === id ? { ...kv, ...updates } : kv);
+    if (field === 'params') {
+      rebuildUrlFromParams(newItems);
+    } else {
+      handleChange({ [field]: newItems });
+    }
   };
 
   const removeKeyValue = (field: 'headers' | 'params', id: string) => {
     if (!request) return;
-    handleChange({
-      [field]: request[field].filter(kv => kv.id !== id),
-    });
+    const newItems = request[field].filter(kv => kv.id !== id);
+    if (field === 'params') {
+      rebuildUrlFromParams(newItems);
+    } else {
+      handleChange({ [field]: newItems });
+    }
   };
 
   const openBatchEdit = (field: 'headers' | 'params') => {
@@ -288,7 +315,11 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
       };
     });
 
-    handleChange({ [batchEditModal.field]: newItems });
+    if (batchEditModal.field === 'params') {
+      rebuildUrlFromParams(newItems);
+    } else {
+      handleChange({ [batchEditModal.field]: newItems });
+    }
     setBatchEditModal({ open: false, field: null });
     setBatchEditText('');
   };
@@ -763,7 +794,27 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
 
         <VariableInput
           value={request.url}
-          onChange={(url) => handleChange({ url })}
+          onChange={(url) => {
+            // Parse query params from URL and sync to Params tab
+            const qIndex = url.indexOf('?');
+            if (qIndex >= 0) {
+              const queryString = url.substring(qIndex + 1);
+              const pairs = queryString.split('&');
+              const parsed: KeyValue[] = pairs
+                .filter(p => p.length > 0)
+                .map(pair => {
+                  const eqIndex = pair.indexOf('=');
+                  const key = eqIndex >= 0 ? pair.substring(0, eqIndex) : pair;
+                  const value = eqIndex >= 0 ? pair.substring(eqIndex + 1) : '';
+                  return { id: uuidv4(), key: decodeURIComponent(key), value: decodeURIComponent(value), enabled: true };
+                });
+              // Keep any existing params that are disabled (user manually toggled off)
+              const disabledParams = (request.params || []).filter(p => !p.enabled);
+              handleChange({ url, params: [...parsed, ...disabledParams] });
+            } else {
+              handleChange({ url });
+            }
+          }}
           className="flex-1"
           placeholder="Enter request URL (e.g., https://api.example.com/users)"
         />
@@ -833,16 +884,18 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
       {/* Section tabs with Save button */}
       <div className="flex items-center border-b border-aki-border shrink-0">
         <div className="flex flex-1">
-          {[
+          {([
             { id: 'params', label: 'Params', count: request.params.filter(p => p.enabled).length },
             { id: 'headers', label: 'Headers', count: request.headers.filter(h => h.enabled).length },
             { id: 'body', label: 'Body' },
             { id: 'auth', label: 'Auth' },
-          ].map((section) => (
+            { id: 'preScript', label: 'Pre-Script' },
+            { id: 'script', label: 'Post-Script', status: activeTab?.scriptExecutionStatus },
+          ]).map((section) => (
             <button
               key={section.id}
               onClick={() => setActiveSection(section.id as any)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`relative px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeSection === section.id
                   ? 'border-aki-accent text-aki-accent'
                   : 'border-transparent text-aki-text-muted hover:text-aki-text'
@@ -853,6 +906,11 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
                 <span className="ml-1 px-1.5 py-0.5 text-xs bg-aki-accent/20 text-aki-accent rounded">
                   {section.count}
                 </span>
+              )}
+              {section.status && section.status !== 'none' && (
+                <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                  section.status === 'success' ? 'bg-green-500' : 'bg-red-500'
+                }`}></span>
               )}
             </button>
           ))}
@@ -874,6 +932,24 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
         {activeSection === 'headers' && renderKeyValueTable('headers')}
         {activeSection === 'body' && renderBody()}
         {activeSection === 'auth' && renderAuth()}
+        {activeSection === 'preScript' && (
+          <div className="h-full">
+            <CodeEditor
+              value={request.preScript || ''}
+              onChange={(preScript) => handleChange({ preScript })}
+              language="javascript"
+            />
+          </div>
+        )}
+        {activeSection === 'script' && (
+          <div className="h-full">
+            <CodeEditor
+              value={request.script || ''}
+              onChange={(script) => handleChange({ script })}
+              language="javascript"
+            />
+          </div>
+        )}
       </div>
 
       {/* Batch Edit Modal */}

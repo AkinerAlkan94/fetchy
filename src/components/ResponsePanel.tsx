@@ -12,7 +12,7 @@ interface ResponsePanelProps {
 }
 
 export default function ResponsePanel({ response, sentRequest, isLoading }: ResponsePanelProps) {
-  const [activeTab, setActiveTab] = useState<'response-body' | 'response-headers' | 'request-headers' | 'request-body'>('response-body');
+  const [activeTab, setActiveTab] = useState<'response-body' | 'response-headers' | 'request-headers' | 'request-body' | 'console'>('response-body');
 
   if (isLoading) {
     return (
@@ -144,6 +144,19 @@ export default function ResponsePanel({ response, sentRequest, isLoading }: Resp
             </button>
           </>
         )}
+        <button
+          onClick={() => setActiveTab('console')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'console'
+              ? 'border-aki-accent text-aki-accent'
+              : 'border-transparent text-aki-text-muted hover:text-aki-text'
+          }`}
+        >
+          Console
+          {(response.scriptError || response.preScriptError) && (
+            <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-red-500"></span>
+          )}
+        </button>
       </div>
 
       {/* Content */}
@@ -161,6 +174,38 @@ export default function ResponsePanel({ response, sentRequest, isLoading }: Resp
               />
             )}
           </>
+        )}
+
+        {activeTab === 'console' && (
+          <div className="h-full overflow-auto p-4 font-mono text-sm">
+            {response.preScriptOutput && (
+              <div className="mb-3">
+                <span className="text-aki-text-muted text-xs">--- Pre-Script ---</span>
+                <pre className="text-green-400 whitespace-pre-wrap mt-1">{response.preScriptOutput}</pre>
+              </div>
+            )}
+            {response.preScriptError && (
+              <div className="mb-3">
+                <span className="text-aki-text-muted text-xs">--- Pre-Script Error ---</span>
+                <pre className="text-red-500 whitespace-pre-wrap mt-1">{response.preScriptError}</pre>
+              </div>
+            )}
+            {response.scriptOutput && (
+              <div className="mb-3">
+                <span className="text-aki-text-muted text-xs">--- Post-Script ---</span>
+                <pre className="text-green-400 whitespace-pre-wrap mt-1">{response.scriptOutput}</pre>
+              </div>
+            )}
+            {response.scriptError && (
+              <div className="mb-3">
+                <span className="text-aki-text-muted text-xs">--- Post-Script Error ---</span>
+                <pre className="text-red-500 whitespace-pre-wrap mt-1">{response.scriptError}</pre>
+              </div>
+            )}
+            {!response.scriptOutput && !response.scriptError && !response.preScriptOutput && !response.preScriptError && (
+              <p className="text-aki-text-muted">No script output</p>
+            )}
+          </div>
         )}
 
         {activeTab === 'response-headers' && (

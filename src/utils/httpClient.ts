@@ -1,5 +1,11 @@
 import { ApiRequest, ApiResponse, KeyValue, RequestAuth } from '../types';
 import { replaceVariables } from './helpers';
+import { useAppStore } from '../store/appStore';
+
+// Check at runtime whether we're in Electron (preload may not be ready at module load time)
+function checkIsElectron(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).electronAPI;
+}
 
 // ElectronAPI type is declared in ../types/index.ts
 
@@ -26,7 +32,13 @@ export const executeRequest = async ({
   // Process URL with variables (env vars take precedence over collection vars)
   let url = replaceVariables(request.url, collectionVariables, environmentVariables);
 
-  // Add query parameters
+  // Strip any inline query params from the URL (they are already synced to request.params)
+  const qIndex = url.indexOf('?');
+  if (qIndex >= 0) {
+    url = url.substring(0, qIndex);
+  }
+
+  // Add query parameters from Params tab
   const enabledParams = request.params.filter(p => p.enabled && p.key);
   if (enabledParams.length > 0) {
     const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
@@ -64,36 +76,21 @@ export const executeRequest = async ({
   // Add auth headers
   if (effectiveAuth.type === 'bearer' && effectiveAuth.bearer) {
     const token = replaceVariables(effectiveAuth.bearer.token, collectionVariables, environmentVariables);
-    console.log('[HTTP Client] Bearer token after variable replacement:', token ? `"${token}"` : '<empty>');
-    // Only add Authorization header if token is not empty
     if (token && token.trim()) {
       headers['Authorization'] = `Bearer ${token}`;
-      console.log('[HTTP Client] Authorization header set:', headers['Authorization']);
-    } else {
-      console.warn('[HTTP Client] Bearer token is empty or whitespace only, skipping Authorization header');
     }
   } else if (effectiveAuth.type === 'basic' && effectiveAuth.basic) {
     const username = replaceVariables(effectiveAuth.basic.username, collectionVariables, environmentVariables);
     const password = replaceVariables(effectiveAuth.basic.password, collectionVariables, environmentVariables);
-    console.log('[HTTP Client] Basic auth username after variable replacement:', username ? `"${username}"` : '<empty>');
-    // Only add Authorization header if username is not empty
     if (username && username.trim()) {
       const credentials = btoa(`${username}:${password}`);
       headers['Authorization'] = `Basic ${credentials}`;
-      console.log('[HTTP Client] Authorization header set for Basic auth');
-    } else {
-      console.warn('[HTTP Client] Basic auth username is empty, skipping Authorization header');
     }
   } else if (effectiveAuth.type === 'api-key' && effectiveAuth.apiKey?.addTo === 'header') {
     const key = replaceVariables(effectiveAuth.apiKey.key, collectionVariables, environmentVariables);
     const value = replaceVariables(effectiveAuth.apiKey.value, collectionVariables, environmentVariables);
-    console.log('[HTTP Client] API Key header:', key ? `"${key}"` : '<empty>', '=', value ? `"${value}"` : '<empty>');
-    // Only add header if both key and value are not empty
     if (key && key.trim() && value && value.trim()) {
       headers[key] = value;
-      console.log('[HTTP Client] API Key header added');
-    } else {
-      console.warn('[HTTP Client] API Key header key or value is empty, skipping');
     }
   }
 
@@ -135,52 +132,104 @@ export const executeRequest = async ({
     }
   }
 
+  const { updateTab, activeTabId } = useAppStore.getState();
+  if (activeTabId) {
+    updateTab(activeTabId, { scriptExecutionStatus: 'none' });
+  }
+
+  // Run pre-script if present. If it errors, abort the request.
+  let preScriptOutput: string | undefined;
+  if (request.preScript) {
+    try {
+      const preScriptResult = runPreScript(request.preScript, environmentVariables);
+      // Return early with error response if pre-script failed
+      if (preScriptResult.error) {
+        return {
+          status: 0,
+          statusText: 'Pre-Script Error',
+          headers: {},
+          body: '',
+          time: 0,
+          size: 0,
+          preScriptError: preScriptResult.error,
+          preScriptOutput: preScriptResult.output || undefined,
+        };
+      }
+      // Pre-script succeeded — store output for Console
+      preScriptOutput = preScriptResult.output;
+    } catch (e: any) {
+      return {
+        status: 0,
+        statusText: 'Pre-Script Error',
+        headers: {},
+        body: '',
+        time: 0,
+        size: 0,
+        preScriptError: e.message,
+      };
+    }
+  }
+
   try {
-    // Use Electron's main process for HTTP requests (bypasses CORS)
-    if (window.electronAPI?.httpRequest && !(body instanceof FormData)) {
+    // If in Electron, use the main process for HTTP requests to bypass CORS.
+    if (checkIsElectron()) {
       const response = await window.electronAPI.httpRequest({
         url,
         method: request.method,
         headers,
-        body: body as string | undefined,
+        body: body,
       });
 
+      if (request.script) {
+        try {
+          await runScript(request.script, response, environmentVariables);
+          if (useAppStore.getState().activeTabId) {
+            useAppStore.getState().updateTab(useAppStore.getState().activeTabId!, { scriptExecutionStatus: 'success' });
+          }
+        } catch (e: any) {
+          response.scriptError = e.message;
+          if (useAppStore.getState().activeTabId) {
+            useAppStore.getState().updateTab(useAppStore.getState().activeTabId!, { scriptExecutionStatus: 'error' });
+          }
+        }
+      }
+      // Attach pre-script output if any
+      if (preScriptOutput) response.preScriptOutput = preScriptOutput;
       return response;
     }
 
-    // Fallback to fetch for web or when FormData is used
-    console.log('[HTTP Client] Using fetch API in browser mode');
-    console.log('[HTTP Client] Request URL:', url);
-    console.log('[HTTP Client] Request Method:', request.method);
-    console.log('[HTTP Client] Request Headers:', JSON.stringify(headers, null, 2));
-    console.log('[HTTP Client] Has Authorization header:', 'Authorization' in headers);
-
-    const response = await fetch(url, {
-      method: request.method,
-      headers,
-      body,
+    // Browser mode: use local CORS proxy
+    const proxyResponse = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        method: request.method,
+        headers,
+        body: body as string | undefined,
+      }),
     });
 
-    const endTime = performance.now();
-    const responseTime = Math.round(endTime - startTime);
+    const apiResponse: ApiResponse = await proxyResponse.json();
 
-    // Get response body
-    const responseText = await response.text();
+    // Run post-script if present
+    if (request.script) {
+      try {
+        await runScript(request.script, apiResponse, environmentVariables);
+        if (useAppStore.getState().activeTabId) {
+          useAppStore.getState().updateTab(useAppStore.getState().activeTabId!, { scriptExecutionStatus: 'success' });
+        }
+      } catch (e: any) {
+        apiResponse.scriptError = e.message;
+        if (useAppStore.getState().activeTabId) {
+          useAppStore.getState().updateTab(useAppStore.getState().activeTabId!, { scriptExecutionStatus: 'error' });
+        }
+      }
+    }
+    // Attach pre-script output if any
+    if (preScriptOutput) apiResponse.preScriptOutput = preScriptOutput;
 
-    // Get response headers
-    const responseHeaders: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      responseHeaders[key] = value;
-    });
-
-    return {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-      body: responseText,
-      time: responseTime,
-      size: new Blob([responseText]).size,
-    };
+    return apiResponse;
   } catch (error) {
     const endTime = performance.now();
     const responseTime = Math.round(endTime - startTime);
@@ -195,6 +244,94 @@ export const executeRequest = async ({
       time: responseTime,
       size: 0,
     };
+  }
+};
+
+const runScript = async (script: string, response: ApiResponse, environment: KeyValue[]) => {
+  const fetchy = {
+    response: {
+      data: JSON.parse(response.body),
+      headers: response.headers,
+      status: response.status,
+      statusText: response.statusText,
+    },
+    environment: {
+      get: (key: string) => {
+        const variable = environment.find(v => v.key === key);
+        return variable ? variable.value : undefined;
+      },
+      set: (key: string, value: any) => {
+        const { updateEnvironment, getActiveEnvironment } = useAppStore.getState();
+        const activeEnvironment = getActiveEnvironment();
+        if (activeEnvironment) {
+          const existingVarIndex = activeEnvironment.variables.findIndex(v => v.key === key);
+          if (existingVarIndex > -1) {
+            const newVariables = [...activeEnvironment.variables];
+            newVariables[existingVarIndex] = { ...newVariables[existingVarIndex], value: String(value) };
+            updateEnvironment(activeEnvironment.id, { variables: newVariables });
+          } else {
+            const newVar: KeyValue = { id: '', key, value: String(value), enabled: true };
+            updateEnvironment(activeEnvironment.id, { variables: [...activeEnvironment.variables, newVar] });
+          }
+        }
+      },
+      all: () => environment,
+    },
+  };
+
+  // Capture console.log output
+  const logs: string[] = [];
+  const fetchy_with_console = {
+    ...fetchy,
+    console: {
+      log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+    },
+  };
+
+  const fn = new Function('fetchy', 'console', script);
+  fn(fetchy_with_console, fetchy_with_console.console);
+
+  if (logs.length > 0) {
+    response.scriptOutput = logs.join('\n');
+  }
+};
+
+const runPreScript = (script: string, environment: KeyValue[]): { error?: string; output?: string } => {
+  const logs: string[] = [];
+  const fetchy = {
+    environment: {
+      get: (key: string) => {
+        const variable = environment.find(v => v.key === key);
+        return variable ? variable.value : undefined;
+      },
+      set: (key: string, value: any) => {
+        const { updateEnvironment, getActiveEnvironment } = useAppStore.getState();
+        const activeEnvironment = getActiveEnvironment();
+        if (activeEnvironment) {
+          const existingVarIndex = activeEnvironment.variables.findIndex(v => v.key === key);
+          if (existingVarIndex > -1) {
+            const newVariables = [...activeEnvironment.variables];
+            newVariables[existingVarIndex] = { ...newVariables[existingVarIndex], value: String(value) };
+            updateEnvironment(activeEnvironment.id, { variables: newVariables });
+          } else {
+            const newVar: KeyValue = { id: '', key, value: String(value), enabled: true };
+            updateEnvironment(activeEnvironment.id, { variables: [...activeEnvironment.variables, newVar] });
+          }
+        }
+      },
+      all: () => environment,
+    },
+    console: {
+      log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+    },
+  };
+
+  try {
+    const fn = new Function('fetchy', 'console', script);
+    fn(fetchy, fetchy.console);
+    return { output: logs.length > 0 ? logs.join('\n') : undefined };
+  } catch (e: any) {
+    return { error: e.message, output: logs.length > 0 ? logs.join('\n') : undefined };
   }
 };
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import VariableTooltip from './VariableTooltip';
 import { useAppStore } from '../store/appStore';
@@ -14,9 +14,24 @@ interface VariableInputProps {
 export default function VariableInput({ value, onChange, placeholder, className, type = 'text' }: VariableInputProps) {
   const [tooltip, setTooltip] = useState<{ variableName: string; position: { x: number; y: number } } | null>(null);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [overlayStyle, setOverlayStyle] = useState<React.CSSProperties>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const { getActiveEnvironment } = useAppStore();
+
+  // Sync overlay padding/font from the input's computed styles so they align perfectly
+  useEffect(() => {
+    if (inputRef.current) {
+      const computed = getComputedStyle(inputRef.current);
+      setOverlayStyle({
+        paddingLeft: computed.paddingLeft,
+        paddingRight: computed.paddingRight,
+        fontSize: computed.fontSize,
+        fontFamily: computed.fontFamily,
+        letterSpacing: computed.letterSpacing,
+      });
+    }
+  }, [className]);
 
   // Sync scroll position between input and overlay
   const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
@@ -148,17 +163,20 @@ export default function VariableInput({ value, onChange, placeholder, className,
         <div
           className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none flex items-center"
           style={{
-            paddingLeft: '0.75rem',
-            paddingRight: '0.75rem',
+            paddingLeft: overlayStyle.paddingLeft,
+            paddingRight: overlayStyle.paddingRight,
             overflow: 'hidden',
           }}
         >
-          <div 
+          <div
             ref={overlayRef}
-            style={{ 
-              whiteSpace: 'nowrap', 
+            style={{
+              whiteSpace: 'nowrap',
               width: '100%',
-              transform: `translateX(-${scrollLeft}px)`
+              transform: `translateX(-${scrollLeft}px)`,
+              fontSize: overlayStyle.fontSize,
+              fontFamily: overlayStyle.fontFamily,
+              letterSpacing: overlayStyle.letterSpacing,
             }}
           >
             {getHighlightedValue()}

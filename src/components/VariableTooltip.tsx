@@ -25,7 +25,8 @@ export default function VariableTooltip({ variableName, position, onClose }: Var
   const variable = activeEnvironment?.variables.find(v => v.key === variableName && v.enabled);
   const isDefined = !!variable;
   const isSecretVar = variable?.isSecret || false;
-  const value = variable?.value || '';
+  // Get effective value: currentValue takes priority, then value, then initialValue
+  const value = variable?.currentValue || variable?.value || variable?.initialValue || '';
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -61,7 +62,7 @@ export default function VariableTooltip({ variableName, position, onClose }: Var
     if (!activeEnvironment || !variable) return;
 
     const updatedVariables = activeEnvironment.variables.map(v =>
-      v.id === variable.id ? { ...v, value: editValue } : v
+      v.id === variable.id ? { ...v, currentValue: editValue } : v
     );
 
     updateEnvironment(activeEnvironment.id, { variables: updatedVariables });
@@ -78,6 +79,8 @@ export default function VariableTooltip({ variableName, position, onClose }: Var
       id: uuidv4(),
       key: variableName,
       value: editValue || '',
+      initialValue: editValue || '',
+      currentValue: '',
       enabled: true,
       isSecret: isSecret,
     };
@@ -255,8 +258,8 @@ export default function VariableTooltip({ variableName, position, onClose }: Var
                   <button
                     onClick={() => setIsSecret(!isSecret)}
                     className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors ${
-                      isSecret 
-                        ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' 
+                      isSecret
+                        ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
                         : 'bg-[#2a2a3e] text-gray-400 hover:bg-[#3d3d5c] hover:text-white'
                     }`}
                   >

@@ -2,14 +2,14 @@ import { useEffect, useRef } from 'react';
 import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
+import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { lineNumbers } from '@codemirror/view';
 import { usePreferencesStore } from '../store/preferencesStore';
 
 interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
-  language?: 'json' | 'text';
+  language?: 'json' | 'javascript' | 'text';
   readOnly?: boolean;
 }
 
@@ -40,6 +40,8 @@ export default function CodeEditor({ value, onChange, language = 'json', readOnl
 
     if (language === 'json') {
       extensions.push(json());
+    } else if (language === 'javascript') {
+      extensions.push(javascript());
     }
 
     if (readOnly) {

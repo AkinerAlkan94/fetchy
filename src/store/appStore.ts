@@ -189,6 +189,8 @@ const createDefaultRequest = (overrides?: Partial<ApiRequest>): ApiRequest => ({
   params: [],
   body: { type: 'none' },
   auth: { type: 'none' },
+  preScript: '',
+  script: '',
   ...overrides,
 });
 
@@ -917,7 +919,7 @@ export const useAppStore = create<AppStore>()(
           if (existingTab) {
             state.activeTabId = existingTab.id;
           } else {
-            const newTab: TabState = { ...tab, id: uuidv4() };
+            const newTab: TabState = { ...tab, id: uuidv4(), scriptExecutionStatus: 'none' };
             state.tabs.push(newTab);
             state.activeTabId = newTab.id;
           }
