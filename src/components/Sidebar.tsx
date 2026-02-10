@@ -40,11 +40,13 @@ import {
   X,
   MoveRight,
   FileCode,
+  Play,
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { Collection, RequestFolder, ApiRequest, RequestHistoryItem, HttpMethod, OpenAPIDocument } from '../types';
 import { getMethodBgColor, exportToPostman } from '../utils/helpers';
 import CollectionAuthModal from './CollectionAuthModal';
+import RunCollectionModal from './RunCollectionModal';
 import Tooltip from './Tooltip';
 
 interface SidebarProps {
@@ -477,6 +479,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
 
   const [activeTab, setActiveTab] = useState<'collections' | 'history' | 'api'>('collections');
   const [authModal, setAuthModal] = useState<{ open: boolean; collectionId: string; folderId?: string } | null>(null);
+  const [runCollectionModal, setRunCollectionModal] = useState<{ open: boolean; collectionId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -1537,6 +1540,16 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                 <button
                   className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
                   onClick={() => {
+                    setRunCollectionModal({ open: true, collectionId: contextMenu.collectionId });
+                    closeContextMenu();
+                  }}
+                >
+                  <Play size={14} /> Run Collection
+                </button>
+                <hr className="my-1 border-aki-border" />
+                <button
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+                  onClick={() => {
                     addRequest(contextMenu.collectionId, null);
                     closeContextMenu();
                   }}
@@ -1846,6 +1859,15 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
           onClose={() => setAuthModal(null)}
           collectionId={authModal.collectionId}
           folderId={authModal.folderId}
+        />
+      )}
+
+      {/* Run Collection Modal */}
+      {runCollectionModal && (
+        <RunCollectionModal
+          isOpen={runCollectionModal.open}
+          onClose={() => setRunCollectionModal(null)}
+          collectionId={runCollectionModal.collectionId}
         />
       )}
     </div>
