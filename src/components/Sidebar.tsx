@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import * as yaml from 'js-yaml';
 import {
   DndContext,
   closestCenter,
@@ -44,7 +45,8 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { Collection, RequestFolder, ApiRequest, RequestHistoryItem, HttpMethod, OpenAPIDocument } from '../types';
-import { getMethodBgColor, exportToPostman } from '../utils/helpers';
+import { getMethodBgColor, exportToPostman, importOpenAPISpec } from '../utils/helpers';
+import { DEFAULT_OPENAPI_YAML } from './openapi/constants';
 import CollectionAuthModal from './CollectionAuthModal';
 import RunCollectionModal from './RunCollectionModal';
 import Tooltip from './Tooltip';
@@ -71,6 +73,10 @@ function SortableApiDocItem({
   onClick,
   onEdit,
   onDelete,
+  onGenerateCollection,
+  onConvertToYaml,
+  onConvertToJson,
+  onExport,
   editingId,
   editingName,
   setEditingName,
@@ -81,12 +87,19 @@ function SortableApiDocItem({
   onClick: () => void;
   onEdit: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
+  onGenerateCollection: (e: React.MouseEvent) => void;
+  onConvertToYaml: (e: React.MouseEvent) => void;
+  onConvertToJson: (e: React.MouseEvent) => void;
+  onExport: (e: React.MouseEvent) => void;
   editingId: string | null;
   editingName: string;
   setEditingName: (name: string) => void;
   inputRef: React.RefObject<HTMLInputElement>;
   onEditComplete: () => void;
 }) {
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const {
     attributes,
     listeners,
@@ -105,11 +118,27 @@ function SortableApiDocItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="tree-item px-2 py-2 cursor-pointer group rounded hover:bg-aki-border flex items-center gap-2"
+      className="tree-item px-2 py-2 cursor-pointer group rounded hover:bg-aki-border flex items-center gap-2 relative"
       onClick={onClick}
     >
       <button
@@ -142,20 +171,87 @@ function SortableApiDocItem({
       <span className="text-[10px] px-1.5 py-0.5 rounded bg-aki-bg text-aki-text-muted uppercase">
         {doc.format}
       </span>
-      <button
-        onClick={onEdit}
-        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
-        title="Rename"
-      >
-        <Edit2 size={12} />
-      </button>
-      <button
-        onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 hover:text-red-400 rounded"
-        title="Delete"
-      >
-        <Trash2 size={12} />
-      </button>
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMenu(!showMenu);
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-aki-border rounded"
+          title="More options"
+        >
+          <MoreVertical size={14} />
+        </button>
+        {showMenu && (
+          <div className="absolute right-0 top-full mt-1 bg-aki-card border border-aki-border rounded-lg shadow-lg py-1 z-50 min-w-[180px]">
+            <button
+              onClick={(e) => {
+                onGenerateCollection(e);
+                setShowMenu(false);
+              }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+            >
+              <FolderPlus size={14} />
+              Generate Collection
+            </button>
+            {doc.format === 'json' && (
+              <button
+                onClick={(e) => {
+                  onConvertToYaml(e);
+                  setShowMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+              >
+                <FileCode size={14} />
+                Convert to YAML
+              </button>
+            )}
+            {doc.format === 'yaml' && (
+              <button
+                onClick={(e) => {
+                  onConvertToJson(e);
+                  setShowMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+              >
+                <FileCode size={14} />
+                Convert to JSON
+              </button>
+            )}
+            <div className="border-t border-aki-border my-1" />
+            <button
+              onClick={(e) => {
+                onExport(e);
+                setShowMenu(false);
+              }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+            >
+              <Download size={14} />
+              Export
+            </button>
+            <button
+              onClick={(e) => {
+                onEdit(e);
+                setShowMenu(false);
+              }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2"
+            >
+              <Edit2 size={14} />
+              Rename
+            </button>
+            <button
+              onClick={(e) => {
+                onDelete(e);
+                setShowMenu(false);
+              }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-aki-border flex items-center gap-2 text-red-400 hover:text-red-300"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1395,7 +1491,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
               </span>
               <button
                 onClick={() => {
-                  const doc = addOpenApiDocument('New API Spec');
+                  const doc = addOpenApiDocument('New API Spec', DEFAULT_OPENAPI_YAML, 'yaml');
                   openTab({
                     type: 'openapi',
                     title: doc.name,
@@ -1415,7 +1511,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                 <p className="text-xs mb-4">Create a new spec to get started</p>
                 <button
                   onClick={() => {
-                    const doc = addOpenApiDocument('New API Spec');
+                    const doc = addOpenApiDocument('New API Spec', DEFAULT_OPENAPI_YAML, 'yaml');
                     openTab({
                       type: 'openapi',
                       title: doc.name,
@@ -1470,6 +1566,65 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                           if (confirm('Delete this OpenAPI spec?')) {
                             deleteOpenApiDocument(doc.id);
                           }
+                        }}
+                        onGenerateCollection={(e) => {
+                          e.stopPropagation();
+                          if (!doc.content.trim()) {
+                            alert('This OpenAPI spec is empty. Add content before generating a collection.');
+                            return;
+                          }
+                          const collection = importOpenAPISpec(doc.content);
+                          if (collection) {
+                            useAppStore.getState().importCollection(collection);
+                            alert(`Collection "${collection.name}" has been created successfully!`);
+                          } else {
+                            alert('Failed to generate collection. Please check the OpenAPI spec format.');
+                          }
+                        }}
+                        onConvertToYaml={(e) => {
+                          e.stopPropagation();
+                          if (!doc.content.trim()) {
+                            alert('This OpenAPI spec is empty. Add content before converting.');
+                            return;
+                          }
+                          try {
+                            const parsed = JSON.parse(doc.content);
+                            const yamlContent = yaml.dump(parsed, { indent: 2, lineWidth: -1 });
+                            updateOpenApiDocument(doc.id, { content: yamlContent, format: 'yaml' });
+                          } catch (error) {
+                            alert('Failed to convert to YAML. Please check the JSON format.');
+                          }
+                        }}
+                        onConvertToJson={(e) => {
+                          e.stopPropagation();
+                          if (!doc.content.trim()) {
+                            alert('This OpenAPI spec is empty. Add content before converting.');
+                            return;
+                          }
+                          try {
+                            const parsed = yaml.load(doc.content);
+                            const jsonContent = JSON.stringify(parsed, null, 2);
+                            updateOpenApiDocument(doc.id, { content: jsonContent, format: 'json' });
+                          } catch (error) {
+                            alert('Failed to convert to JSON. Please check the YAML format.');
+                          }
+                        }}
+                        onExport={(e) => {
+                          e.stopPropagation();
+                          if (!doc.content.trim()) {
+                            alert('This OpenAPI spec is empty. Add content before exporting.');
+                            return;
+                          }
+                          const extension = doc.format === 'yaml' ? 'yaml' : 'json';
+                          const blob = new Blob([doc.content], { type: 'text/plain' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${doc.name}.${extension}`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
                         }}
                         editingId={editingApiSpecId}
                         editingName={editingApiSpecName}

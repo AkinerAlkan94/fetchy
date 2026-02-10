@@ -19,9 +19,6 @@ import {
   AlertCircle,
   Copy,
   Check,
-  Download,
-  FileJson,
-  FileText,
   ArrowUpRight,
   ArrowDownLeft,
   FileInput,
@@ -477,22 +474,6 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
           >
             <Save size={14} />
             <span className="hidden sm:inline">Save</span>
-          </button>
-          <button
-            onClick={convertFormat}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-aki-bg border border-aki-border rounded hover:bg-aki-border transition-colors whitespace-nowrap"
-            title={`Convert to ${format === 'yaml' ? 'JSON' : 'YAML'}`}
-          >
-            {format === 'yaml' ? <FileJson size={14} /> : <FileText size={14} />}
-            <span className="hidden md:inline">{format === 'yaml' ? 'To JSON' : 'To YAML'}</span>
-          </button>
-          <button
-            onClick={downloadSpec}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-aki-bg border border-aki-border rounded hover:bg-aki-border transition-colors whitespace-nowrap"
-            title="Download"
-          >
-            <Download size={14} />
-            <span className="hidden md:inline">Download</span>
           </button>
         </div>
 
