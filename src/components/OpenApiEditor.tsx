@@ -823,11 +823,12 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
     if (documentId && newName.trim()) {
       setDocumentName(newName.trim());
       updateOpenApiDocument(documentId, { name: newName.trim() });
-      // Update the tab title
-      const tab = tabs.find(t => t.openApiDocId === documentId);
-      if (tab) {
-        updateTab(tab.id, { title: newName.trim() });
-      }
+      // Update all tabs with this openApiDocId to reflect the new name
+      tabs.forEach(tab => {
+        if (tab.openApiDocId === documentId) {
+          updateTab(tab.id, { title: newName.trim() });
+        }
+      });
     }
     setIsEditingName(false);
   }, [documentId, updateOpenApiDocument, tabs, updateTab]);
@@ -940,6 +941,51 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
     setTimeout(() => setCopiedEndpoint(null), 2000);
   };
 
+  // Helper to merge path-level and operation-level parameters
+  const getMergedParameters = (
+    pathItem: Record<string, unknown>,
+    operation: PathOperation
+  ): Array<{
+    name: string;
+    in: string;
+    description?: string;
+    required?: boolean;
+    schema?: Record<string, unknown>;
+    example?: unknown;
+  }> => {
+    const pathParams = (pathItem.parameters as Array<Record<string, unknown>> | undefined) || [];
+    const opParams = (operation.parameters as Array<Record<string, unknown>> | undefined) || [];
+
+    // Convert path-level $ref parameters to resolved parameters
+    const resolvedPathParams = pathParams.map(param => {
+      if (param.$ref) {
+        // For now, we'll assume the parameter structure is inline in the path
+        // In a full implementation, you'd resolve the $ref here
+        return param as any;
+      }
+      return param as any;
+    });
+
+    // Merge path and operation parameters, with operation parameters taking precedence
+    const paramMap = new Map<string, any>();
+
+    // Add path-level parameters first
+    resolvedPathParams.forEach(param => {
+      if (param.name && param.in) {
+        paramMap.set(`${param.name}:${param.in}`, param);
+      }
+    });
+
+    // Add/override with operation-level parameters
+    opParams.forEach(param => {
+      if (param.name && param.in) {
+        paramMap.set(`${param.name}:${param.in}`, param);
+      }
+    });
+
+    return Array.from(paramMap.values());
+  };
+
   const convertFormat = () => {
     try {
       if (format === 'yaml') {
@@ -970,28 +1016,31 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
 
   // Group paths by tags
   const pathsByTag = useMemo(() => {
-    if (!parsedSpec?.paths) return new Map<string, Array<{ path: string; method: string; operation: PathOperation }>>();
+    if (!parsedSpec?.paths) return new Map<string, Array<{ path: string; method: string; operation: PathOperation; pathItem: Record<string, unknown> }>>();
 
-    const grouped = new Map<string, Array<{ path: string; method: string; operation: PathOperation }>>();
-    grouped.set('Untagged', []);
+    const grouped = new Map<string, Array<{ path: string; method: string; operation: PathOperation; pathItem: Record<string, unknown> }>>();
 
     for (const [path, methods] of Object.entries(parsedSpec.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         if (typeof operation !== 'object' || !operation) continue;
         const op = operation as PathOperation;
-        const tags = op.tags || ['Untagged'];
-        for (const tag of tags) {
-          if (!grouped.has(tag)) {
-            grouped.set(tag, []);
+
+        // If operation has tags, use them; otherwise it goes to 'Untagged'
+        if (op.tags && op.tags.length > 0) {
+          for (const tag of op.tags) {
+            if (!grouped.has(tag)) {
+              grouped.set(tag, []);
+            }
+            grouped.get(tag)!.push({ path, method, operation: op, pathItem: methods as Record<string, unknown> });
           }
-          grouped.get(tag)!.push({ path, method, operation: op });
+        } else {
+          // No tags defined, put in Untagged
+          if (!grouped.has('Untagged')) {
+            grouped.set('Untagged', []);
+          }
+          grouped.get('Untagged')!.push({ path, method, operation: op, pathItem: methods as Record<string, unknown> });
         }
       }
-    }
-
-    // Remove empty Untagged
-    if (grouped.get('Untagged')?.length === 0) {
-      grouped.delete('Untagged');
     }
 
     return grouped;
@@ -1185,9 +1234,10 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
                       {/* Operations */}
                       {expandedTags.has(tag) && (
                         <div className="ml-6 space-y-2">
-                          {operations.map(({ path, method, operation }) => {
+                          {operations.map(({ path, method, operation, pathItem }) => {
                             const pathKey = `${method}:${path}`;
                             const isExpanded = expandedPaths.has(pathKey);
+                            const mergedParameters = getMergedParameters(pathItem, operation);
 
                             return (
                               <div key={pathKey} className="border border-aki-border rounded overflow-hidden">
@@ -1251,7 +1301,7 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
 
                                         {/* Path Parameters */}
                                         {(() => {
-                                          const pathParams = operation.parameters?.filter(p => p.in === 'path') || [];
+                                          const pathParams = mergedParameters?.filter(p => p.in === 'path') || [];
                                           return pathParams.length > 0 ? (
                                             <div className="mb-4">
                                               <h5 className="text-xs font-medium text-aki-text-muted uppercase mb-2 flex items-center gap-1">
@@ -1283,7 +1333,7 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
 
                                         {/* Query Parameters */}
                                         {(() => {
-                                          const queryParams = operation.parameters?.filter(p => p.in === 'query') || [];
+                                          const queryParams = mergedParameters?.filter(p => p.in === 'query') || [];
                                           return queryParams.length > 0 ? (
                                             <div className="mb-4">
                                               <h5 className="text-xs font-medium text-aki-text-muted uppercase mb-2 flex items-center gap-1">
@@ -1317,7 +1367,7 @@ export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
 
                                         {/* Request Headers - Always show */}
                                         {(() => {
-                                          const headerParams = operation.parameters?.filter(p => p.in === 'header') || [];
+                                          const headerParams = mergedParameters?.filter(p => p.in === 'header') || [];
                                           return (
                                             <div className="mb-4">
                                               <h5 className="text-xs font-medium text-aki-text-muted uppercase mb-2 flex items-center gap-1">

@@ -897,10 +897,22 @@ export const useAppStore = create<AppStore>()(
 
       openTab: (tab: Omit<TabState, 'id'>) => {
         set(state => {
-          // Check if tab already exists
-          const existingTab = state.tabs.find(t =>
-            t.requestId === tab.requestId && tab.requestId
-          );
+          // Check if tab already exists based on type
+          let existingTab = null;
+
+          if (tab.requestId) {
+            // For request tabs, check by requestId
+            existingTab = state.tabs.find(t => t.requestId === tab.requestId);
+          } else if (tab.openApiDocId) {
+            // For OpenAPI document tabs, check by openApiDocId
+            existingTab = state.tabs.find(t => t.openApiDocId === tab.openApiDocId);
+          } else if (tab.environmentId) {
+            // For environment tabs, check by environmentId
+            existingTab = state.tabs.find(t => t.environmentId === tab.environmentId);
+          } else if (tab.collectionId && tab.type === 'collection') {
+            // For collection tabs, check by collectionId and type
+            existingTab = state.tabs.find(t => t.collectionId === tab.collectionId && t.type === 'collection');
+          }
 
           if (existingTab) {
             state.activeTabId = existingTab.id;

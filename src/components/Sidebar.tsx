@@ -459,6 +459,8 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
     deleteRequest,
     duplicateRequest,
     openTab,
+    updateTab,
+    tabs,
     history,
     clearHistory,
     reorderCollections,
@@ -1075,52 +1077,45 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
     <div className="h-full bg-aki-sidebar flex flex-col border-r border-aki-border">
       {/* Header */}
       <div className="p-3 border-b border-aki-border">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium text-aki-text">Collections</span>
-          <div className="flex items-center gap-1">
-            <Tooltip content="New Collection">
-              <button
-                onClick={handleAddCollection}
-                className="p-1.5 hover:bg-aki-border rounded text-aki-text-muted hover:text-aki-text"
-              >
-                <Plus size={16} />
-              </button>
-            </Tooltip>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab('collections')}
-            className={`flex-1 px-2 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'collections'
-                ? 'bg-aki-border text-aki-text'
-                : 'text-aki-text-muted hover:bg-aki-border'
-            }`}
-          >
-            <Folder size={14} />
-            Collections
-          </button>
+        <div className="bg-aki-card border border-aki-border rounded-lg p-1 flex gap-1">
           <button
             onClick={() => setActiveTab('api')}
-            className={`flex-1 px-2 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            className={`${
+              activeTab === 'api' ? 'flex-1' : ''
+            } px-3 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'api'
-                ? 'bg-aki-border text-aki-text'
-                : 'text-aki-text-muted hover:bg-aki-border'
+                ? 'bg-aki-accent text-white shadow-sm'
+                : 'text-aki-text-muted hover:bg-aki-border hover:text-aki-text'
             }`}
           >
             <FileCode size={14} />
-            API
+            {activeTab === 'api' && 'API'}
+          </button>
+          <button
+            onClick={() => setActiveTab('collections')}
+            className={`${
+              activeTab === 'collections' ? 'flex-1' : ''
+            } px-3 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'collections'
+                ? 'bg-aki-accent text-white shadow-sm'
+                : 'text-aki-text-muted hover:bg-aki-border hover:text-aki-text'
+            }`}
+          >
+            <Folder size={14} />
+            {activeTab === 'collections' && 'Collections'}
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`flex-1 px-2 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            className={`${
+              activeTab === 'history' ? 'flex-1' : ''
+            } px-3 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'history'
-                ? 'bg-aki-border text-aki-text'
-                : 'text-aki-text-muted hover:bg-aki-border'
+                ? 'bg-aki-accent text-white shadow-sm'
+                : 'text-aki-text-muted hover:bg-aki-border hover:text-aki-text'
             }`}
           >
             <Clock size={14} />
-            History
+            {activeTab === 'history' && 'History'}
           </button>
         </div>
       </div>
@@ -1345,28 +1340,46 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
             </button>
           </div>
         ) : activeTab === 'collections' ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={collectionIds} strategy={verticalListSortingStrategy}>
-              {filteredCollections.map(renderCollection)}
-            </SortableContext>
-            <DragOverlay>
-              {activeId && activeDragData && (
-                <div className="bg-aki-card border border-aki-accent rounded px-3 py-2 shadow-lg opacity-90">
-                  <span className="text-sm text-aki-text">
-                    {activeDragData.type === 'collection' && collections.find(c => c.id === activeDragData.id)?.name}
-                    {activeDragData.type === 'request' && 'Moving request...'}
-                    {activeDragData.type === 'folder' && 'Moving folder...'}
-                  </span>
-                </div>
-              )}
-            </DragOverlay>
-          </DndContext>
+          <div>
+            {/* Collections Section Header */}
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-xs text-aki-text-muted">
+                {filteredCollections.length} collection{filteredCollections.length !== 1 ? 's' : ''}
+                {filteredCollections.length !== collections.length && (
+                  <span className="text-aki-text-muted"> ({collections.length} total)</span>
+                )}
+              </span>
+              <button
+                onClick={handleAddCollection}
+                className="text-xs text-aki-accent hover:text-aki-accent/80 flex items-center gap-1"
+              >
+                <Plus size={12} /> New Collection
+              </button>
+            </div>
+
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={collectionIds} strategy={verticalListSortingStrategy}>
+                {filteredCollections.map(renderCollection)}
+              </SortableContext>
+              <DragOverlay>
+                {activeId && activeDragData && (
+                  <div className="bg-aki-card border border-aki-accent rounded px-3 py-2 shadow-lg opacity-90">
+                    <span className="text-sm text-aki-text">
+                      {activeDragData.type === 'collection' && collections.find(c => c.id === activeDragData.id)?.name}
+                      {activeDragData.type === 'request' && 'Moving request...'}
+                      {activeDragData.type === 'folder' && 'Moving folder...'}
+                    </span>
+                  </div>
+                )}
+              </DragOverlay>
+            </DndContext>
+          </div>
         ) : activeTab === 'api' ? (
           <div>
             {/* API Section Header */}
@@ -1461,7 +1474,15 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                         inputRef={apiSpecInputRef}
                         onEditComplete={() => {
                           if (editingApiSpecName.trim()) {
-                            updateOpenApiDocument(doc.id, { name: editingApiSpecName.trim() });
+                            const newName = editingApiSpecName.trim();
+                            updateOpenApiDocument(doc.id, { name: newName });
+
+                            // Update all tabs with this openApiDocId to reflect the new name
+                            tabs.forEach(tab => {
+                              if (tab.openApiDocId === doc.id) {
+                                updateTab(tab.id, { title: newName });
+                              }
+                            });
                           }
                           setEditingApiSpecId(null);
                         }}
