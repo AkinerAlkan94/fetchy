@@ -176,6 +176,9 @@ function SortableVariableRow({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const initialVal = variable.initialValue ?? variable.value ?? '';
+  const currentVal = variable.currentValue ?? '';
+
   return (
     <tr ref={setNodeRef} style={style} className="border-b border-aki-border/50">
       <td className="p-2">
@@ -207,10 +210,27 @@ function SortableVariableRow({
       <td className="p-0">
         <input
           type={variable.isSecret ? 'password' : 'text'}
-          value={variable.value}
-          onChange={(e) => onUpdate(variable.id, { value: e.target.value })}
-          placeholder={variable.isSecret ? '••••••••' : 'Value'}
-          className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${variable.isSecret ? 'text-orange-400' : ''}`}
+          value={initialVal}
+          onChange={(e) =>
+            onUpdate(variable.id, {
+              initialValue: e.target.value,
+              value: e.target.value, // Keep value in sync for backward compatibility
+            })
+          }
+          placeholder="Preset value (shared)"
+          className="w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar"
+        />
+      </td>
+      <td className="p-0">
+        <input
+          type={variable.isSecret ? 'password' : 'text'}
+          value={currentVal}
+          onChange={(e) =>
+            onUpdate(variable.id, { currentValue: e.target.value })
+          }
+          placeholder="Override value (local)"
+          className={`w-full bg-transparent p-2 text-sm outline-none focus:bg-aki-sidebar ${currentVal ? 'text-aki-accent font-medium' : 'text-aki-text-muted'}`}
+          title="Current value overrides initial value during execution"
         />
       </td>
       <td className="p-2 text-center">

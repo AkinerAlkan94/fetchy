@@ -491,11 +491,11 @@ export const replaceVariables = (
 
   // Helper to get effective value (currentValue > value > initialValue)
   const getEffectiveValue = (variable: KeyValue): string => {
-    // Prefer currentValue if set, otherwise use value, fallback to initialValue
-    if (variable.currentValue !== undefined) {
+    // Prefer currentValue if set and non-empty, otherwise use value, fallback to initialValue
+    if (variable.currentValue !== undefined && variable.currentValue !== '') {
       return variable.currentValue;
     }
-    if (variable.value !== undefined) {
+    if (variable.value !== undefined && variable.value !== '') {
       return variable.value;
     }
     return variable.initialValue || '';
