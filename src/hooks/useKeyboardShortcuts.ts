@@ -82,7 +82,7 @@ export function useKeyboardShortcuts(additionalShortcuts?: ShortcutHandler[]) {
 // Available shortcuts for reference (used by KeyboardShortcutsModal)
 export const keyboardShortcuts = [
   { keys: 'Ctrl+S', description: 'Save current request' },
-  { keys: 'Ctrl+Enter', description: 'Send request' },
+  { keys: 'Ctrl+Enter / Shift+Enter', description: 'Send request' },
   { keys: 'Ctrl+W', description: 'Close current tab' },
   { keys: 'Ctrl+Tab', description: 'Next tab' },
   { keys: 'Ctrl+Shift+Tab', description: 'Previous tab' },

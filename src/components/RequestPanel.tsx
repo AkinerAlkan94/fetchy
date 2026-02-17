@@ -245,7 +245,7 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
         e.preventDefault();
         handleSave();
       }
-      if (e.ctrlKey && e.key === 'Enter') {
+      if ((e.ctrlKey || e.shiftKey) && e.key === 'Enter') {
         e.preventDefault();
         handleSend();
       }
