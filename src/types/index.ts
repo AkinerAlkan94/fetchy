@@ -5,7 +5,9 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 
 export interface KeyValue {
   id: string;
   key: string;
-  value: string;
+  value: string; // For backward compatibility, maps to currentValue
+  initialValue?: string; // Preset/shared value (can be exported)
+  currentValue?: string; // Local/runtime value (overrides initialValue)
   enabled: boolean;
   description?: string;
   isSecret?: boolean;
@@ -43,8 +45,8 @@ export interface ApiRequest {
   params: KeyValue[];
   body: RequestBody;
   auth: RequestAuth;
-  preRequestScript?: string;
-  testScript?: string;
+  preScript?: string;
+  script?: string;
 }
 
 export interface ApiResponse {
@@ -54,6 +56,10 @@ export interface ApiResponse {
   body: string;
   time: number;
   size: number;
+  preScriptError?: string;
+  preScriptOutput?: string;
+  scriptError?: string;
+  scriptOutput?: string;
 }
 
 export interface RequestFolder {
@@ -219,13 +225,14 @@ export interface TabState {
   title: string;
   requestId?: string;
   collectionId?: string;
-  folderId?: string;
+  folderId?: string | null;
   environmentId?: string;
   openApiDocId?: string; // For OpenAPI editor tabs
   isModified?: boolean;
   isHistoryItem?: boolean; // Flag to indicate this tab is loaded from history
   historyRequest?: ApiRequest; // Store the original history request data
   historyResponse?: ApiResponse; // Store the original history response data
+  scriptExecutionStatus?: 'success' | 'error' | 'none'; // Flag to indicate the result of the post-request script execution
 }
 
 export interface AppState {
