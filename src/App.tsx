@@ -23,6 +23,12 @@ import { ApiResponse, RequestHistoryItem, ApiRequest } from './types';
 
 type ImportType = 'postman' | 'openapi' | 'curl';
 
+interface TabResponseData {
+  response: ApiResponse | null;
+  sentRequest: ApiRequest | null;
+  isLoading: boolean;
+}
+
 function App() {
   const {
     tabs,
@@ -41,9 +47,7 @@ function App() {
     togglePanelLayout,
   } = useAppStore();
   const { loadPreferences, preferences } = usePreferencesStore();
-  const [response, setResponse] = useState<ApiResponse | null>(null);
-  const [sentRequest, setSentRequest] = useState<ApiRequest | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [tabResponses, setTabResponses] = useState<Record<string, TabResponseData>>({});
   const [showImportModal, setShowImportModal] = useState(false);
   const [importType, setImportType] = useState<ImportType>('postman');
   const [showExportModal, setShowExportModal] = useState(false);
@@ -53,6 +57,67 @@ function App() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   const mainPanelRef = useRef<HTMLDivElement>(null);
+  const prevTabIdsRef = useRef<Set<string>>(new Set());
+
+  // Derive per-tab response data for the active tab
+  const currentTabData = activeTabId ? tabResponses[activeTabId] : undefined;
+  const response = currentTabData?.response ?? null;
+  const sentRequest = currentTabData?.sentRequest ?? null;
+  const isLoading = currentTabData?.isLoading ?? false;
+
+  // Per-tab setters that capture activeTabId at creation time
+  const setResponse = useCallback((resp: ApiResponse | null) => {
+    const tabId = activeTabId;
+    if (!tabId) return;
+    setTabResponses(prev => ({
+      ...prev,
+      [tabId]: {
+        ...(prev[tabId] ?? { response: null, sentRequest: null, isLoading: false }),
+        response: resp,
+      },
+    }));
+  }, [activeTabId]);
+
+  const setSentRequest = useCallback((req: ApiRequest | null) => {
+    const tabId = activeTabId;
+    if (!tabId) return;
+    setTabResponses(prev => ({
+      ...prev,
+      [tabId]: {
+        ...(prev[tabId] ?? { response: null, sentRequest: null, isLoading: false }),
+        sentRequest: req,
+      },
+    }));
+  }, [activeTabId]);
+
+  const setIsLoading = useCallback((loading: boolean) => {
+    const tabId = activeTabId;
+    if (!tabId) return;
+    setTabResponses(prev => ({
+      ...prev,
+      [tabId]: {
+        ...(prev[tabId] ?? { response: null, sentRequest: null, isLoading: false }),
+        isLoading: loading,
+      },
+    }));
+  }, [activeTabId]);
+
+  // Clean up response data when tabs are closed
+  useEffect(() => {
+    const currentTabIds = new Set(tabs.map(t => t.id));
+    const removedIds: string[] = [];
+    prevTabIdsRef.current.forEach(id => {
+      if (!currentTabIds.has(id)) removedIds.push(id);
+    });
+    if (removedIds.length > 0) {
+      setTabResponses(prev => {
+        const next = { ...prev };
+        removedIds.forEach(id => delete next[id]);
+        return next;
+      });
+    }
+    prevTabIdsRef.current = currentTabIds;
+  }, [tabs]);
 
   // Load preferences on mount
   useEffect(() => {
@@ -65,19 +130,17 @@ function App() {
 
   // Load history response/request when switching to a history tab
   useEffect(() => {
-    if (activeTab?.isHistoryItem) {
-      if (activeTab.historyResponse) {
-        setResponse(activeTab.historyResponse);
-      }
-      if (activeTab.historyRequest) {
-        setSentRequest(activeTab.historyRequest);
-      }
-    } else {
-      // Clear response when switching to non-history tab
-      // setResponse(null);
-      // setSentRequest(null);
+    if (activeTab?.isHistoryItem && activeTabId && !tabResponses[activeTabId]) {
+      setTabResponses(prev => ({
+        ...prev,
+        [activeTabId]: {
+          response: activeTab.historyResponse ?? null,
+          sentRequest: activeTab.historyRequest ?? null,
+          isLoading: false,
+        },
+      }));
     }
-  }, [activeTabId, activeTab?.isHistoryItem, activeTab?.historyResponse, activeTab?.historyRequest]);
+  }, [activeTabId, activeTab?.isHistoryItem, activeTab?.historyResponse, activeTab?.historyRequest, tabResponses]);
 
   const handleHistoryItemClick = useCallback((item: RequestHistoryItem) => {
     // Open a new tab for the history item
@@ -89,11 +152,7 @@ function App() {
       historyResponse: item.response,
     });
 
-    // Set response and sent request for display
-    if (item.response) {
-      setResponse(item.response);
-    }
-    setSentRequest(item.request);
+    // Response will be loaded by the history tab effect when the tab becomes active
   }, [openTab]);
 
   const handleNewRequest = useCallback(() => {

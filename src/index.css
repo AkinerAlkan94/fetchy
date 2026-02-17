@@ -104,6 +104,26 @@ body {
     background-color: #e9ecef;
   }
 
+  /* Sidebar focus tint */
+  .sidebar-focus-collections {
+    background-color: rgba(233, 69, 96, 0.12);
+  }
+  body.light-theme .sidebar-focus-collections {
+    background-color: rgba(201, 56, 80, 0.10);
+  }
+  .sidebar-focus-api {
+    background-color: rgba(168, 85, 247, 0.12);
+  }
+  body.light-theme .sidebar-focus-api {
+    background-color: rgba(168, 85, 247, 0.10);
+  }
+  .sidebar-focus-history {
+    background-color: rgba(59, 130, 246, 0.12);
+  }
+  body.light-theme .sidebar-focus-history {
+    background-color: rgba(59, 130, 246, 0.10);
+  }
+
   /* HTTP Method Colors - Theme Aware */
   .method-get {
     @apply bg-green-500/20 text-green-400;
@@ -529,6 +549,8 @@ body.light-theme .tooltip::after {
 .tree-item:hover {
   background-color: rgba(233, 69, 96, 0.1);
 }
+
+
 
 /* Modal backdrop */
 .modal-backdrop {

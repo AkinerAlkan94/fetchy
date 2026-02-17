@@ -297,7 +297,7 @@ function SortableCollectionItem({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-2">
+    <div ref={setNodeRef} style={style} className="mb-2 relative">
       <div
         className="tree-item flex items-center gap-2 px-2 py-2 cursor-pointer group rounded"
         onClick={onToggle}
@@ -362,6 +362,8 @@ function SortableRequestItem({
   setEditingName,
   inputRef,
   onEditComplete,
+  isActive,
+  isHighlighted,
 }: {
   request: ApiRequest;
   collectionId: string;
@@ -374,6 +376,8 @@ function SortableRequestItem({
   setEditingName: (name: string) => void;
   inputRef: React.RefObject<HTMLInputElement>;
   onEditComplete: () => void;
+  isActive?: boolean;
+  isHighlighted?: boolean;
 }) {
   const {
     attributes,
@@ -387,6 +391,14 @@ function SortableRequestItem({
     data: { type: 'request', collectionId, folderId, request }
   });
 
+  const itemRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isHighlighted && itemRef.current) {
+      itemRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isHighlighted]);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -395,9 +407,12 @@ function SortableRequestItem({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        (itemRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      }}
       style={style}
-      className="tree-item flex items-center gap-2 px-2 py-1.5 cursor-pointer group rounded"
+      className={`tree-item flex items-center gap-2 px-2 py-1.5 cursor-pointer group rounded ${isActive && isHighlighted ? 'bg-aki-accent/15 ring-2 ring-yellow-500/70' : isActive ? 'bg-aki-accent/15 ring-1 ring-aki-accent/40' : isHighlighted ? 'bg-yellow-500/10 ring-1 ring-yellow-500/50' : ''}`}
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
@@ -559,6 +574,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
     openTab,
     updateTab,
     tabs,
+    activeTabId,
     history,
     clearHistory,
     reorderCollections,
@@ -573,7 +589,13 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
     reorderOpenApiDocuments,
   } = useAppStore();
 
+  // Determine which request is currently active based on the open tab
+  const activeStoreTab = tabs.find(t => t.id === activeTabId);
+  const activeRequestId = activeStoreTab?.requestId ?? null;
+
   const [activeTab, setActiveTab] = useState<'collections' | 'history' | 'api'>('collections');
+  const [isFocused, setIsFocused] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const [authModal, setAuthModal] = useState<{ open: boolean; collectionId: string; folderId?: string } | null>(null);
   const [runCollectionModal, setRunCollectionModal] = useState<{ open: boolean; collectionId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -591,6 +613,10 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
   const [editingApiSpecName, setEditingApiSpecName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const apiSpecInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard navigation state for search results
+  const [highlightedRequestId, setHighlightedRequestId] = useState<string | null>(null);
 
   // Filter and sort states
   const [searchQuery, setSearchQuery] = useState('');
@@ -621,6 +647,108 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Track sidebar focus — show accent border only when sidebar is interacted with
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (sidebarRef.current && sidebarRef.current.contains(e.target as Node)) {
+        setIsFocused(true);
+      } else {
+        setIsFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, []);
+
+  // Refs for keydown handler to avoid dependency ordering issues
+  const flatVisibleRequestsRef = useRef<{ requestId: string; collectionId: string; folderId?: string; request: ApiRequest }[]>([]);
+  const highlightedRequestIdRef = useRef<string | null>(null);
+  const handleRequestClickRef = useRef<(collectionId: string, request: ApiRequest, folderId?: string) => void>(() => {});
+
+  // Keep refs in sync
+  useEffect(() => {
+    highlightedRequestIdRef.current = highlightedRequestId;
+  }, [highlightedRequestId]);
+
+  // Auto-focus collection search when typing while collections tab is active
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only for collections tab
+      if (activeTab !== 'collections') return;
+      // Only when sidebar is focused
+      if (!isFocused) return;
+      // Don't intercept if already typing in an input/textarea/contenteditable
+      const target = e.target as HTMLElement;
+      const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Handle Up/Down navigation even outside search input
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        // Skip if in a non-search input (e.g. renaming)
+        if (isInInput && target !== searchInputRef.current) return;
+        e.preventDefault();
+        const flat = flatVisibleRequestsRef.current;
+        if (flat.length === 0) return;
+
+        const currentHighlight = highlightedRequestIdRef.current;
+        const currentIndex = currentHighlight
+          ? flat.findIndex(r => r.requestId === currentHighlight)
+          : -1;
+
+        let nextIndex: number;
+        if (e.key === 'ArrowDown') {
+          nextIndex = currentIndex < flat.length - 1 ? currentIndex + 1 : 0;
+        } else {
+          nextIndex = currentIndex > 0 ? currentIndex - 1 : flat.length - 1;
+        }
+
+        setHighlightedRequestId(flat[nextIndex].requestId);
+        return;
+      }
+
+      // Handle Enter to open highlighted request
+      if (e.key === 'Enter' && highlightedRequestIdRef.current) {
+        // Allow Enter from search input or from sidebar (not other inputs)
+        if (isInInput && target !== searchInputRef.current) return;
+        e.preventDefault();
+        const flat = flatVisibleRequestsRef.current;
+        const item = flat.find(r => r.requestId === highlightedRequestIdRef.current);
+        if (item) {
+          handleRequestClickRef.current(item.collectionId, item.request, item.folderId);
+          setHighlightedRequestId(null);
+        }
+        return;
+      }
+
+      // Handle Escape to clear highlight
+      if (e.key === 'Escape') {
+        if (highlightedRequestIdRef.current) {
+          setHighlightedRequestId(null);
+        }
+        if (target === searchInputRef.current) {
+          searchInputRef.current?.blur();
+        }
+        return;
+      }
+
+      // Auto-type into search box for printable chars
+      if (isInInput) return;
+      // Don't intercept modifier combos (Ctrl+C, etc.) except Shift for uppercase
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Only printable characters (single char keys)
+      if (e.key.length !== 1) return;
+      // Don't intercept if no collections exist (search bar not shown)
+      if (collections.length === 0) return;
+
+      e.preventDefault();
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        setSearchQuery(prev => prev + e.key);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, isFocused, collections.length]);
 
   // Filter and sort collections/requests
   const filterRequests = useCallback((requests: ApiRequest[]): ApiRequest[] => {
@@ -763,6 +891,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
       folderId,
     });
   };
+  handleRequestClickRef.current = handleRequestClick;
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -1071,6 +1200,8 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                 collectionId={collectionId}
                 folderId={folder.id}
                 depth={depth + 1}
+                isActive={activeRequestId === request.id}
+                isHighlighted={highlightedRequestId === request.id}
                 onClick={() => handleRequestClick(collectionId, request, folder.id)}
                 onContextMenu={(e) => handleContextMenu(e, 'request', collectionId, folder.id, request.id)}
                 editingId={editingId}
@@ -1119,6 +1250,8 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                 request={request}
                 collectionId={collection.id}
                 depth={1}
+                isActive={activeRequestId === request.id}
+                isHighlighted={highlightedRequestId === request.id}
                 onClick={() => handleRequestClick(collection.id, request)}
                 onContextMenu={(e) => handleContextMenu(e, 'request', collection.id, undefined, request.id)}
                 editingId={editingId}
@@ -1168,12 +1301,46 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
     </div>
   );
 
+  // Build flat list of visible requests for keyboard navigation
+  const flatVisibleRequests = useMemo(() => {
+    const result: { requestId: string; collectionId: string; folderId?: string; request: ApiRequest }[] = [];
+    const traverseFolder = (collectionId: string, folder: RequestFolder) => {
+      if (!folder.expanded) return;
+      for (const f of folder.folders) {
+        traverseFolder(collectionId, f);
+      }
+      for (const r of folder.requests) {
+        result.push({ requestId: r.id, collectionId, folderId: folder.id, request: r });
+      }
+    };
+    for (const collection of filteredCollections) {
+      if (!collection.expanded) continue;
+      for (const folder of collection.folders) {
+        traverseFolder(collection.id, folder);
+      }
+      for (const r of collection.requests) {
+        result.push({ requestId: r.id, collectionId: collection.id, request: r });
+      }
+    }
+    return result;
+  }, [filteredCollections]);
+
+  // Keep refs in sync with latest values
+  useEffect(() => {
+    flatVisibleRequestsRef.current = flatVisibleRequests;
+  }, [flatVisibleRequests]);
+
+  // Reset highlight when search query changes
+  useEffect(() => {
+    setHighlightedRequestId(null);
+  }, [searchQuery]);
+
   const collectionIds = filteredCollections.map(c => `collection-${c.id}`);
 
   const hasActiveFilters = searchQuery || filterMethod !== 'all' || sortOption !== 'created';
 
   return (
-    <div className="h-full bg-aki-sidebar flex flex-col border-r border-aki-border">
+    <div ref={sidebarRef} className="h-full bg-aki-sidebar flex flex-col border-r border-aki-border">
       {/* Header */}
       <div className="p-3 border-b border-aki-border">
         <div className="bg-aki-card border border-aki-border rounded-lg p-1 flex gap-1">
@@ -1191,7 +1358,13 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
             {activeTab === 'api' && 'API'}
           </button>
           <button
-            onClick={() => setActiveTab('collections')}
+            onClick={() => {
+              setActiveTab('collections');
+              // Auto-highlight the active request or fallback to first visible
+              if (activeRequestId) {
+                setHighlightedRequestId(activeRequestId);
+              }
+            }}
             className={`${
               activeTab === 'collections' ? 'flex-1' : ''
             } px-3 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
@@ -1221,10 +1394,11 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
 
       {/* Filter/Search Bar - Only for collections and API tabs */}
       {(activeTab === 'collections' && collections.length > 0) || (activeTab === 'api' && openApiDocuments.length > 0) ? (
-        <div className="p-2 border-b border-aki-border">
+        <div className={`p-2 border-b border-aki-border transition-colors duration-150 ${isFocused ? (activeTab === 'collections' ? 'sidebar-focus-collections' : activeTab === 'api' ? 'sidebar-focus-api' : '') : ''}`}>
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <input
+                ref={activeTab === 'collections' ? searchInputRef : undefined}
                 type="text"
                 placeholder={activeTab === 'collections' ? "Search requests..." : "Search API specs..."}
                 value={activeTab === 'collections' ? searchQuery : apiSearchQuery}
@@ -1291,9 +1465,9 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                     }
                   }}
                   className={`p-1.5 rounded border ${
-                    (activeTab === 'collections' && hasActiveFilters) || 
+                    (activeTab === 'collections' && hasActiveFilters) ||
                     (activeTab === 'api' && (apiSearchQuery || apiFilterFormat !== 'all' || apiSortOption !== 'created'))
-                      ? 'bg-aki-accent/20 border-aki-accent text-aki-accent' 
+                      ? 'bg-aki-accent/20 border-aki-accent text-aki-accent'
                       : 'border-aki-border text-aki-text-muted hover:text-aki-text hover:bg-aki-border'
                   }`}
                 >
@@ -1420,7 +1594,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
       ) : null}
 
       {/* Content list */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className={`flex-1 overflow-y-auto p-2 transition-colors duration-150 ${isFocused ? (activeTab === 'collections' ? 'sidebar-focus-collections' : activeTab === 'api' ? 'sidebar-focus-api' : activeTab === 'history' ? 'sidebar-focus-history' : '') : ''}`}>
         {activeTab === 'collections' && collections.length === 0 ? (
           <div className="text-center py-8 text-aki-text-muted">
             <p className="text-sm mb-4">No collections yet</p>
