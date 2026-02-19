@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -9,74 +9,22 @@ import {
   RequestFolder,
   TabState,
   RequestHistoryItem,
-  HttpMethod,
   OpenAPIDocument,
 } from '../types';
+import { AppStorageExport, createCustomStorage } from './persistence';
+import {
+  createDefaultRequest,
+  findAndUpdateRequest,
+  findRequest,
+  findAndDeleteRequest,
+  findAndUpdateFolder,
+  findAndDeleteFolder,
+  addRequestToFolder,
+  addSubFolder,
+} from './requestTree';
+// Re-export AppStorageExport so existing consumers don't need to change their imports
+export type { AppStorageExport };
 
-// Check if running in Electron
-const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-
-// Full storage export interface
-export interface AppStorageExport {
-  version: string;
-  exportedAt: string;
-  collections: Collection[];
-  environments: Environment[];
-  activeEnvironmentId: string | null;
-  history?: RequestHistoryItem[]; // Optional - not included in exports but may exist in imports
-}
-
-// Custom storage that uses Electron API when available
-const createCustomStorage = (): StateStorage => {
-  // For Electron environment, use file-based storage
-  if (isElectron) {
-    return {
-      getItem: async (name: string): Promise<string | null> => {
-        try {
-          const result = await (window as any).electronAPI.readData(`${name}.json`);
-          return result;
-        } catch (error) {
-          console.error('Error reading from file storage:', error);
-          return null;
-        }
-      },
-      setItem: async (name: string, value: string): Promise<void> => {
-        try {
-          await (window as any).electronAPI.writeData({
-            filename: `${name}.json`,
-            content: value,
-          });
-        } catch (error) {
-          console.error('Error writing to file storage:', error);
-        }
-      },
-      removeItem: async (name: string): Promise<void> => {
-        try {
-          // Write empty object to effectively remove the data
-          await (window as any).electronAPI.writeData({
-            filename: `${name}.json`,
-            content: '{}',
-          });
-        } catch (error) {
-          console.error('Error removing from file storage:', error);
-        }
-      },
-    };
-  }
-
-  // Fallback to localStorage for browser environment
-  return {
-    getItem: (name: string): string | null => {
-      return localStorage.getItem(name);
-    },
-    setItem: (name: string, value: string): void => {
-      localStorage.setItem(name, value);
-    },
-    removeItem: (name: string): void => {
-      localStorage.removeItem(name);
-    },
-  };
-};
 
 interface AppStore {
   // Collections
@@ -180,182 +128,6 @@ interface AppStore {
   reorderOpenApiDocuments: (fromIndex: number, toIndex: number) => void;
 }
 
-const createDefaultRequest = (overrides?: Partial<ApiRequest>): ApiRequest => ({
-  id: uuidv4(),
-  name: 'New Request',
-  method: 'GET' as HttpMethod,
-  url: '',
-  headers: [],
-  params: [],
-  body: { type: 'none' },
-  auth: { type: 'none' },
-  preScript: '',
-  script: '',
-  ...overrides,
-});
-
-const findAndUpdateRequest = (
-  folders: RequestFolder[],
-  requests: ApiRequest[],
-  requestId: string,
-  updates: Partial<ApiRequest>
-): { folders: RequestFolder[]; requests: ApiRequest[]; found: boolean } => {
-  // Check in requests array
-  const reqIndex = requests.findIndex(r => r.id === requestId);
-  if (reqIndex !== -1) {
-    const updatedRequests = [...requests];
-    updatedRequests[reqIndex] = { ...updatedRequests[reqIndex], ...updates };
-    return { folders, requests: updatedRequests, found: true };
-  }
-
-  // Check in folders
-  for (let i = 0; i < folders.length; i++) {
-    const folder = folders[i];
-    const result = findAndUpdateRequest(folder.folders, folder.requests, requestId, updates);
-    if (result.found) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = { ...folder, folders: result.folders, requests: result.requests };
-      return { folders: updatedFolders, requests, found: true };
-    }
-  }
-
-  return { folders, requests, found: false };
-};
-
-const findRequest = (
-  folders: RequestFolder[],
-  requests: ApiRequest[],
-  requestId: string
-): ApiRequest | null => {
-  const req = requests.find(r => r.id === requestId);
-  if (req) return req;
-
-  for (const folder of folders) {
-    const found = findRequest(folder.folders, folder.requests, requestId);
-    if (found) return found;
-  }
-
-  return null;
-};
-
-const findAndDeleteRequest = (
-  folders: RequestFolder[],
-  requests: ApiRequest[],
-  requestId: string
-): { folders: RequestFolder[]; requests: ApiRequest[]; found: boolean } => {
-  const reqIndex = requests.findIndex(r => r.id === requestId);
-  if (reqIndex !== -1) {
-    return { folders, requests: requests.filter(r => r.id !== requestId), found: true };
-  }
-
-  for (let i = 0; i < folders.length; i++) {
-    const folder = folders[i];
-    const result = findAndDeleteRequest(folder.folders, folder.requests, requestId);
-    if (result.found) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = { ...folder, folders: result.folders, requests: result.requests };
-      return { folders: updatedFolders, requests, found: true };
-    }
-  }
-
-  return { folders, requests, found: false };
-};
-
-const findAndUpdateFolder = (
-  folders: RequestFolder[],
-  folderId: string,
-  updates: Partial<RequestFolder>
-): { folders: RequestFolder[]; found: boolean } => {
-  for (let i = 0; i < folders.length; i++) {
-    if (folders[i].id === folderId) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = { ...folders[i], ...updates };
-      return { folders: updatedFolders, found: true };
-    }
-
-    const result = findAndUpdateFolder(folders[i].folders, folderId, updates);
-    if (result.found) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = { ...folders[i], folders: result.folders };
-      return { folders: updatedFolders, found: true };
-    }
-  }
-
-  return { folders, found: false };
-};
-
-const findAndDeleteFolder = (
-  folders: RequestFolder[],
-  folderId: string
-): { folders: RequestFolder[]; found: boolean } => {
-  const folderIndex = folders.findIndex(f => f.id === folderId);
-  if (folderIndex !== -1) {
-    return { folders: folders.filter(f => f.id !== folderId), found: true };
-  }
-
-  for (let i = 0; i < folders.length; i++) {
-    const result = findAndDeleteFolder(folders[i].folders, folderId);
-    if (result.found) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = { ...folders[i], folders: result.folders };
-      return { folders: updatedFolders, found: true };
-    }
-  }
-
-  return { folders, found: false };
-};
-
-const addRequestToFolder = (
-  folders: RequestFolder[],
-  folderId: string,
-  request: ApiRequest
-): { folders: RequestFolder[]; found: boolean } => {
-  for (let i = 0; i < folders.length; i++) {
-    if (folders[i].id === folderId) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = {
-        ...folders[i],
-        requests: [...folders[i].requests, request],
-      };
-      return { folders: updatedFolders, found: true };
-    }
-
-    const result = addRequestToFolder(folders[i].folders, folderId, request);
-    if (result.found) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = { ...folders[i], folders: result.folders };
-      return { folders: updatedFolders, found: true };
-    }
-  }
-
-  return { folders, found: false };
-};
-
-const addSubFolder = (
-  folders: RequestFolder[],
-  parentFolderId: string,
-  newFolder: RequestFolder
-): { folders: RequestFolder[]; found: boolean } => {
-  for (let i = 0; i < folders.length; i++) {
-    if (folders[i].id === parentFolderId) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = {
-        ...folders[i],
-        folders: [...folders[i].folders, newFolder],
-      };
-      return { folders: updatedFolders, found: true };
-    }
-
-    const result = addSubFolder(folders[i].folders, parentFolderId, newFolder);
-    if (result.found) {
-      const updatedFolders = [...folders];
-      updatedFolders[i] = { ...folders[i], folders: result.folders };
-      return { folders: updatedFolders, found: true };
-    }
-  }
-
-  return { folders, found: false };
-};
 
 export const useAppStore = create<AppStore>()(
   persist(
