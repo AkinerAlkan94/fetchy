@@ -118,8 +118,21 @@ export interface CustomTheme {
   colors: CustomThemeColors;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  homeDirectory: string;
+  secretsDirectory: string;
+  createdAt: number;
+}
+
+export interface WorkspacesConfig {
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
+}
+
 export interface AppPreferences {
-  homeDirectory: string | null;
+  homeDirectory: string | null; // Legacy – kept for backward compat
   theme: BuiltinTheme | string; // string for custom theme IDs
   autoSave: boolean;
   maxHistoryItems: number;
@@ -269,6 +282,22 @@ export interface AppState {
   sidebarCollapsed: boolean;
 }
 
+// Workspace export format
+export interface WorkspaceExport {
+  fetchyWorkspaceExport: true;
+  version: '2.0';
+  exportedAt: string;
+  workspaceName: string;
+  publicData: Record<string, unknown> | null;
+  secretsData: SecretsStorage | null;
+}
+
+export interface SecretsStorage {
+  version: string;
+  /** key: "env:{envId}:{varId}" or "col:{colId}:{varId}" → secret value */
+  secrets: Record<string, string>;
+}
+
 // Electron API type definition
 export interface ElectronAPI {
   httpRequest: (data: {
@@ -282,11 +311,27 @@ export interface ElectronAPI {
   getDataPath: () => Promise<string>;
   readData: (filename: string) => Promise<string | null>;
   writeData: (data: { filename: string; content: string }) => Promise<boolean>;
+  // Secrets
+  readSecrets: () => Promise<string | null>;
+  writeSecrets: (data: { content: string }) => Promise<boolean>;
+  // Preferences
   getPreferences: () => Promise<AppPreferences | null>;
   savePreferences: (preferences: AppPreferences) => Promise<boolean>;
+  // Legacy home directory
   selectHomeDirectory: () => Promise<string | null>;
   getHomeDirectory: () => Promise<string>;
   migrateData: (data: { oldPath: string; newPath: string }) => Promise<boolean>;
+  // Workspace management
+  getWorkspaces: () => Promise<WorkspacesConfig>;
+  saveWorkspaces: (config: WorkspacesConfig) => Promise<boolean>;
+  selectDirectory: (opts?: { title?: string }) => Promise<string | null>;
+  exportWorkspaceToJson: (data: { workspaceId: string }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  importWorkspaceFromJson: (data: {
+    name: string;
+    homeDirectory: string;
+    secretsDirectory: string;
+    exportData: WorkspaceExport;
+  }) => Promise<{ success: boolean; workspace?: Workspace; error?: string }>;
 }
 
 // Extend Window interface globally

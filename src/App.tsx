@@ -11,6 +11,9 @@ import EnvironmentModal from './components/EnvironmentModal';
 import EnvironmentDropdown from './components/EnvironmentDropdown';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import SettingsModal from './components/SettingsModal';
+import WorkspacesModal from './components/WorkspacesModal';
+import WorkspaceDropdown from './components/WorkspaceDropdown';
+import CreateWorkspaceScreen from './components/CreateWorkspaceScreen';
 import UpdateModal from './components/UpdateModal';
 import ThemeToggle from './components/ThemeToggle';
 import ResizeHandle from './components/ResizeHandle';
@@ -18,6 +21,7 @@ import Tooltip from './components/Tooltip';
 import OpenApiEditor from './components/OpenApiEditor';
 import { useAppStore } from './store/appStore';
 import { usePreferencesStore } from './store/preferencesStore';
+import { useWorkspacesStore } from './store/workspacesStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ApiResponse, RequestHistoryItem, ApiRequest } from './types';
 
@@ -46,7 +50,9 @@ function App() {
     panelLayout,
     togglePanelLayout,
   } = useAppStore();
-  const { loadPreferences, preferences } = usePreferencesStore();
+  const { loadPreferences } = usePreferencesStore();
+  const { workspaces, activeWorkspaceId, isLoading: workspacesLoading, loadWorkspaces } = useWorkspacesStore();
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) ?? null;
   const [tabResponses, setTabResponses] = useState<Record<string, TabResponseData>>({});
   const [showImportModal, setShowImportModal] = useState(false);
   const [importType, setImportType] = useState<ImportType>('postman');
@@ -54,6 +60,7 @@ function App() {
   const [showEnvironmentModal, setShowEnvironmentModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showWorkspacesModal, setShowWorkspacesModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   const mainPanelRef = useRef<HTMLDivElement>(null);
@@ -119,10 +126,11 @@ function App() {
     prevTabIdsRef.current = currentTabIds;
   }, [tabs]);
 
-  // Load preferences on mount
+  // Load preferences and workspaces on mount
   useEffect(() => {
     loadPreferences();
-  }, [loadPreferences]);
+    loadWorkspaces();
+  }, [loadPreferences, loadWorkspaces]);
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const hasActiveRequest = activeTab?.type === 'request';
@@ -236,6 +244,20 @@ function App() {
     },
   ]);
 
+  // ── Workspace gate (after all hooks) ────────────────────────────────────────
+  // Block the UI while workspaces are loading or until one is created/selected.
+  if (workspacesLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-aki-bg">
+        <RefreshCw size={24} className="animate-spin text-aki-text-muted" />
+      </div>
+    );
+  }
+
+  if (workspaces.length === 0 || !activeWorkspaceId || !activeWorkspace) {
+    return <CreateWorkspaceScreen onCreated={() => window.location.reload()} />;
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col bg-aki-bg overflow-hidden">
       {/* Top bar */}
@@ -248,6 +270,7 @@ function App() {
         </div>
         <div className="flex items-center gap-2">
           <EnvironmentDropdown onOpenSettings={() => setShowEnvironmentModal(true)} />
+          <WorkspaceDropdown onOpenSettings={() => setShowWorkspacesModal(true)} />
           <Tooltip content="Settings">
             <button
               onClick={() => setShowSettingsModal(true)}
@@ -398,6 +421,14 @@ function App() {
         <SettingsModal
           isOpen={showSettingsModal}
           onClose={() => setShowSettingsModal(false)}
+          onOpenWorkspaces={() => setShowWorkspacesModal(true)}
+        />
+      )}
+
+      {showWorkspacesModal && (
+        <WorkspacesModal
+          isOpen={showWorkspacesModal}
+          onClose={() => setShowWorkspacesModal(false)}
         />
       )}
 
