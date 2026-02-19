@@ -21,6 +21,7 @@ const defaultPreferences: AppPreferences = {
   theme: 'dark',
   autoSave: true,
   maxHistoryItems: 100,
+  customThemes: [],
 };
 
 export const usePreferencesStore = create<PreferencesStore>()((set, get) => ({

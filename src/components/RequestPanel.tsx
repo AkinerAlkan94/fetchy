@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Send, Save, Plus, Trash2, FileText, X, Link, Terminal, Check, Code, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { ApiRequest, ApiResponse, HttpMethod, KeyValue } from '../types';
@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import VariableInput from './VariableInput';
 import VariableTextarea from './VariableTextarea';
 import Tooltip from './Tooltip';
-import CodeEditor from './CodeEditor';
+import CodeEditor, { CodeEditorHandle } from './CodeEditor';
 
 interface RequestPanelProps {
   setResponse: (response: ApiResponse | null) => void;
@@ -37,6 +37,8 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
   const [request, setLocalRequest] = useState<ApiRequest | null>(null);
   const [activeSection, setActiveSection] = useState<'params' | 'headers' | 'body' | 'auth' | 'preScript' | 'script'>('params');
   const [batchEditModal, setBatchEditModal] = useState<{ open: boolean; field: 'headers' | 'params' | null }>({ open: false, field: null });
+  const preScriptEditorRef = useRef<CodeEditorHandle>(null);
+  const postScriptEditorRef = useRef<CodeEditorHandle>(null);
   const [batchEditText, setBatchEditText] = useState('');
   const [codeModal, setCodeModal] = useState<{ open: boolean; activeLanguage: string; copied: boolean }>({ open: false, activeLanguage: 'curl', copied: false });
   const [showCodeDropdown, setShowCodeDropdown] = useState(false);
@@ -933,21 +935,29 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
         {activeSection === 'body' && renderBody()}
         {activeSection === 'auth' && renderAuth()}
         {activeSection === 'preScript' && (
-          <div className="h-full">
-            <CodeEditor
-              value={request.preScript || ''}
-              onChange={(preScript) => handleChange({ preScript })}
-              language="javascript"
-            />
+          <div className="h-full flex">
+            <div className="flex-1 overflow-hidden">
+              <CodeEditor
+                ref={preScriptEditorRef}
+                value={request.preScript || ''}
+                onChange={(preScript) => handleChange({ preScript })}
+                language="javascript"
+              />
+            </div>
+            <ScriptSnippetsPanel type="pre" onInsert={(code) => preScriptEditorRef.current?.insertAtCursor(code)} />
           </div>
         )}
         {activeSection === 'script' && (
-          <div className="h-full">
-            <CodeEditor
-              value={request.script || ''}
-              onChange={(script) => handleChange({ script })}
-              language="javascript"
-            />
+          <div className="h-full flex">
+            <div className="flex-1 overflow-hidden">
+              <CodeEditor
+                ref={postScriptEditorRef}
+                value={request.script || ''}
+                onChange={(script) => handleChange({ script })}
+                language="javascript"
+              />
+            </div>
+            <ScriptSnippetsPanel type="post" onInsert={(code) => postScriptEditorRef.current?.insertAtCursor(code)} />
           </div>
         )}
       </div>
@@ -1086,3 +1096,164 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
   );
 }
 
+// ─── Script Snippets Panel ────────────────────────────────────────────────────
+
+interface Snippet {
+  label: string;
+  description: string;
+  code: string;
+}
+
+const PRE_SCRIPT_SNIPPETS: Snippet[] = [
+  {
+    label: 'Set Env Variable',
+    description: 'Set a value in the active environment',
+    code: "fetchy.environment.set('key', 'value');",
+  },
+  {
+    label: 'Get Env Variable',
+    description: 'Read a value from the active environment',
+    code: "const value = fetchy.environment.get('key');",
+  },
+  {
+    label: 'Get All Variables',
+    description: 'Get an array of all environment variables',
+    code: "const vars = fetchy.environment.all();\nconsole.log(vars);",
+  },
+  {
+    label: 'Log Output',
+    description: 'Print a message to the Console tab',
+    code: "console.log('message');",
+  },
+  {
+    label: 'Random UUID',
+    description: 'Generate a UUID and store it as an env variable',
+    code: "const uuid = crypto.randomUUID();\nfetchy.environment.set('uuid', uuid);\nconsole.log('UUID:', uuid);",
+  },
+  {
+    label: 'Unix Timestamp',
+    description: 'Store the current Unix timestamp as an env variable',
+    code: "const ts = String(Date.now());\nfetchy.environment.set('timestamp', ts);\nconsole.log('Timestamp:', ts);",
+  },
+  {
+    label: 'Random Number',
+    description: 'Generate a random integer in a range',
+    code: "const rand = String(Math.floor(Math.random() * 1000));\nfetchy.environment.set('randomNum', rand);",
+  },
+  {
+    label: 'Dynamic Auth Token',
+    description: 'Use an existing env var as bearer in a header',
+    code: "// Make sure 'token' is set in your environment\n// fetchy.environment.set('token', '<your-token-here>');",
+  },
+];
+
+const POST_SCRIPT_SNIPPETS: Snippet[] = [
+  {
+    label: 'Log Response',
+    description: 'Print the full response body to the Console tab',
+    code: "console.log(fetchy.response.data);",
+  },
+  {
+    label: 'Get Response Status',
+    description: 'Read the HTTP status code',
+    code: "const status = fetchy.response.status;\nconsole.log('Status:', status);",
+  },
+  {
+    label: 'Get Response Header',
+    description: 'Read a specific response header',
+    code: "const ct = fetchy.response.headers['content-type'];\nconsole.log('Content-Type:', ct);",
+  },
+  {
+    label: 'Extract & Store Field',
+    description: 'Pull a field from the JSON response and save it as an env variable',
+    code: "const value = fetchy.response.data.field;\nfetchy.environment.set('key', value);",
+  },
+  {
+    label: 'Store Token',
+    description: 'Save an access token from the response body',
+    code: "const token = fetchy.response.data.access_token\n  || fetchy.response.data.token;\nif (token) {\n  fetchy.environment.set('token', token);\n  console.log('Token saved.');\n}",
+  },
+  {
+    label: 'Check Status 200',
+    description: 'Log a message only when the request succeeds',
+    code: "if (fetchy.response.status === 200) {\n  console.log('Request succeeded!');\n} else {\n  console.log('Unexpected status:', fetchy.response.status);\n}",
+  },
+  {
+    label: 'Set Env Variable',
+    description: 'Set a value in the active environment',
+    code: "fetchy.environment.set('key', 'value');",
+  },
+  {
+    label: 'Get Env Variable',
+    description: 'Read a value from the active environment',
+    code: "const value = fetchy.environment.get('key');",
+  },
+  {
+    label: 'Log All Env Vars',
+    description: 'Print every environment variable to the Console',
+    code: "const vars = fetchy.environment.all();\nconsole.log(vars);",
+  },
+];
+
+interface ScriptSnippetsPanelProps {
+  type: 'pre' | 'post';
+  onInsert: (code: string) => void;
+}
+
+function ScriptSnippetsPanel({ type, onInsert }: ScriptSnippetsPanelProps) {
+  const snippets = type === 'pre' ? PRE_SCRIPT_SNIPPETS : POST_SCRIPT_SNIPPETS;
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div
+      className={`h-full border-l border-aki-border bg-aki-card flex flex-col transition-all duration-200 ${
+        expanded ? 'w-56' : 'w-8'
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-2 py-2 border-b border-aki-border shrink-0">
+        {expanded && (
+          <span className="text-xs font-semibold text-aki-text-muted uppercase tracking-wide truncate">
+            Snippets
+          </span>
+        )}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="ml-auto p-0.5 rounded hover:bg-aki-border text-aki-text-muted hover:text-aki-text transition-colors"
+          title={expanded ? 'Collapse snippets' : 'Expand snippets'}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            className={`transition-transform ${expanded ? '' : 'rotate-180'}`}
+          >
+            <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Snippet list */}
+      {expanded && (
+        <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+          {snippets.map((snippet) => (
+            <button
+              key={snippet.label}
+              onClick={() => onInsert(snippet.code)}
+              className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-aki-border transition-colors group"
+              title={snippet.description}
+            >
+              <span className="block font-medium text-aki-accent group-hover:text-aki-accent truncate">
+                {snippet.label}
+              </span>
+              <span className="block text-aki-text-muted truncate mt-0.5 text-[10px]">
+                {snippet.description}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

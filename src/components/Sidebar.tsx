@@ -1394,7 +1394,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
 
       {/* Filter/Search Bar - Only for collections and API tabs */}
       {(activeTab === 'collections' && collections.length > 0) || (activeTab === 'api' && openApiDocuments.length > 0) ? (
-        <div className={`p-2 border-b border-aki-border transition-colors duration-150 ${isFocused ? (activeTab === 'collections' ? 'sidebar-focus-collections' : activeTab === 'api' ? 'sidebar-focus-api' : '') : ''}`}>
+        <div className={`p-2 border-b border-aki-border transition-colors duration-150 ${isFocused ? 'sidebar-focused' : ''}`}>
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <input
@@ -1594,7 +1594,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
       ) : null}
 
       {/* Content list */}
-      <div className={`flex-1 overflow-y-auto p-2 transition-colors duration-150 ${isFocused ? (activeTab === 'collections' ? 'sidebar-focus-collections' : activeTab === 'api' ? 'sidebar-focus-api' : activeTab === 'history' ? 'sidebar-focus-history' : '') : ''}`}>
+      <div className={`flex-1 overflow-y-auto p-2 transition-colors duration-150 ${isFocused ? 'sidebar-focused' : ''}`}>
         {activeTab === 'collections' && collections.length === 0 ? (
           <div className="text-center py-8 text-aki-text-muted">
             <p className="text-sm mb-4">No collections yet</p>

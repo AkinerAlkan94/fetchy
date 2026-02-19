@@ -47,7 +47,7 @@ import {
 export default function OpenApiEditor({ documentId }: OpenApiEditorProps) {
   const { preferences } = usePreferencesStore();
   const { updateOpenApiDocument, getOpenApiDocument, updateTab, tabs } = useAppStore();
-  const isDark = preferences.theme === 'dark';
+  const isDark = preferences.theme !== 'light';
 
   const [content, setContent] = useState(DEFAULT_OPENAPI_YAML);
   const [savedContent, setSavedContent] = useState(DEFAULT_OPENAPI_YAML);

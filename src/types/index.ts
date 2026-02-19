@@ -97,11 +97,33 @@ export interface RequestHistoryItem {
   timestamp: number;
 }
 
+export type BuiltinTheme = 'dark' | 'light' | 'ocean' | 'forest' | 'earth';
+
+export interface CustomThemeColors {
+  bgColor: string;
+  sidebarColor: string;
+  cardColor: string;
+  textColor: string;
+  textMuted: string;
+  borderColor: string;
+  hoverBg: string;
+  inputBg: string;
+  accent: string;
+  accentHover: string;
+}
+
+export interface CustomTheme {
+  id: string;
+  name: string;
+  colors: CustomThemeColors;
+}
+
 export interface AppPreferences {
   homeDirectory: string | null;
-  theme: 'dark' | 'light' | 'system';
+  theme: BuiltinTheme | string; // string for custom theme IDs
   autoSave: boolean;
   maxHistoryItems: number;
+  customThemes: CustomTheme[];
 }
 
 // OpenAPI types

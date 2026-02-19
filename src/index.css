@@ -53,6 +53,118 @@ body {
   --accent-hover: #d63350;
 }
 
+/* Ocean theme - blue tones */
+body.ocean-theme {
+  background-color: #071e2e;
+  color: #e2eaf2;
+  --bg-color: #071e2e;
+  --sidebar-color: #0a2740;
+  --card-color: #0d3358;
+  --text-color: #e2eaf2;
+  --text-muted: #7fa8c9;
+  --border-color: #1a4a6e;
+  --hover-bg: #1a4a6e;
+  --input-bg: #041524;
+  --accent: #0ea5e9;
+  --accent-hover: #0284c7;
+}
+
+/* Forest theme - green tones */
+body.forest-theme {
+  background-color: #091a0d;
+  color: #e2f2e6;
+  --bg-color: #091a0d;
+  --sidebar-color: #0c2213;
+  --card-color: #0f331c;
+  --text-color: #e2f2e6;
+  --text-muted: #7abf92;
+  --border-color: #1a4a2c;
+  --hover-bg: #1a4a2c;
+  --input-bg: #051209;
+  --accent: #22c55e;
+  --accent-hover: #16a34a;
+}
+
+/* Earth theme - brown tones */
+body.earth-theme {
+  background-color: #1a120a;
+  color: #f2ece4;
+  --bg-color: #1a120a;
+  --sidebar-color: #231810;
+  --card-color: #2e1f0d;
+  --text-color: #f2ece4;
+  --text-muted: #a89070;
+  --border-color: #4a3020;
+  --hover-bg: #4a3020;
+  --input-bg: #140e06;
+  --accent: #d97706;
+  --accent-hover: #b45309;
+}
+
+/* Aurora theme - nordic aurora borealis, vivid purples & magentas */
+body.aurora-theme {
+  background-color: #0d0d1a;
+  color: #e8e2f8;
+  --bg-color: #0d0d1a;
+  --sidebar-color: #130d2e;
+  --card-color: #1a1040;
+  --text-color: #e8e2f8;
+  --text-muted: #8b7fc4;
+  --border-color: #2e1f6e;
+  --hover-bg: #2e1f6e;
+  --input-bg: #08060f;
+  --accent: #c026d3;
+  --accent-hover: #a21caf;
+}
+
+/* Sunset theme - rich deep red base, flame red primary */
+body.sunset-theme {
+  background-color: #3d0800;
+  color: #fff5f0;
+  --bg-color: #3d0800;
+  --sidebar-color: #2a0500;
+  --card-color: #4d0a00;
+  --text-color: #fff5f0;
+  --text-muted: #ffaa88;
+  --border-color: #7a1500;
+  --hover-bg: #7a1500;
+  --input-bg: #220400;
+  --accent: #ff1500;
+  --accent-hover: #dd1000;
+}
+
+/* Candy theme - rich deep magenta base, neon pink primary */
+body.candy-theme {
+  background-color: #4d0030;
+  color: #fff0fa;
+  --bg-color: #4d0030;
+  --sidebar-color: #3a0022;
+  --card-color: #600040;
+  --text-color: #fff0fa;
+  --text-muted: #ffaadd;
+  --border-color: #880055;
+  --hover-bg: #880055;
+  --input-bg: #2a0018;
+  --accent: #ff0080;
+  --accent-hover: #dd006e;
+}
+
+/* Rainbow theme - vivid primary hues across the spectrum */
+body.rainbow-theme {
+  background-color: #1a0a3d;
+  color: #fffdf0;
+  --bg-color: #1a0a3d;
+  --sidebar-color: #120830;
+  --card-color: #230d50;
+  --text-color: #fffdf0;
+  --text-muted: #b090e0;
+  --border-color: #3d1880;
+  --hover-bg: #3d1880;
+  --input-bg: #0d051e;
+  --accent: #ffdd00;
+  --accent-hover: #e0c000;
+}
+
 /* Theme-aware utility classes */
 @layer utilities {
   .bg-theme-bg {
@@ -104,24 +216,9 @@ body {
     background-color: #e9ecef;
   }
 
-  /* Sidebar focus tint */
-  .sidebar-focus-collections {
-    background-color: rgba(233, 69, 96, 0.12);
-  }
-  body.light-theme .sidebar-focus-collections {
-    background-color: rgba(201, 56, 80, 0.10);
-  }
-  .sidebar-focus-api {
-    background-color: rgba(168, 85, 247, 0.12);
-  }
-  body.light-theme .sidebar-focus-api {
-    background-color: rgba(168, 85, 247, 0.10);
-  }
-  .sidebar-focus-history {
-    background-color: rgba(59, 130, 246, 0.12);
-  }
-  body.light-theme .sidebar-focus-history {
-    background-color: rgba(59, 130, 246, 0.10);
+  /* Sidebar focus tint — single unified class matching the general sidebar palette */
+  .sidebar-focused {
+    background-color: var(--sidebar-color);
   }
 
   /* HTTP Method Colors - Theme Aware */

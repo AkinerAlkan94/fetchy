@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
@@ -13,11 +13,16 @@ interface CodeEditorProps {
   readOnly?: boolean;
 }
 
-export default function CodeEditor({ value, onChange, language = 'json', readOnly = false }: CodeEditorProps) {
+export interface CodeEditorHandle {
+  insertAtCursor: (text: string) => void;
+}
+
+const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
+  function CodeEditor({ value, onChange, language = 'json', readOnly = false }, ref) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { preferences } = usePreferencesStore();
-  const isDark = preferences.theme === 'dark';
+  const isDark = preferences.theme !== 'light';
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -81,6 +86,20 @@ export default function CodeEditor({ value, onChange, language = 'json', readOnl
     }
   }, [value]);
 
-  return <div ref={editorRef} className="h-full w-full" />;
-}
+  useImperativeHandle(ref, () => ({
+    insertAtCursor: (text: string) => {
+      if (!viewRef.current) return;
+      const view = viewRef.current;
+      const selection = view.state.selection.main;
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: text },
+        selection: { anchor: selection.from + text.length },
+      });
+      view.focus();
+    },
+  }));
 
+  return <div ref={editorRef} className="h-full w-full" />;
+});
+
+export default CodeEditor;
