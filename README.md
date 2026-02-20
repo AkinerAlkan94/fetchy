@@ -343,8 +343,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [x] Collection runner (sequential & parallel)
 - [x] OpenAPI editor
 - [x] Workspaces with separate secrets storage
-- [ ] Response assertions
-- [ ] Request chaining
+- [x] Response assertions
+- [x] Request chaining
 - [ ] Request documentation/notes
 
 ---
