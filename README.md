@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.1.3-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/electron-powered-9feaf9.svg" alt="Electron">
@@ -44,6 +44,7 @@
 - **All HTTP Methods** - Support for GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS
 - **Query Parameters** - Easy-to-use parameter builder with enable/disable toggles
 - **Custom Headers** - Add, modify, and toggle request headers
+- **Batch Edit** - Edit headers and parameters in bulk as raw text
 - **Request Body Types**:
   - JSON (with syntax highlighting)
   - Form Data (multipart/form-data)
@@ -56,22 +57,32 @@
 - **Bearer Token** - JWT and token-based authentication
 - **Basic Auth** - Username/password authentication
 - **API Key** - Header or query parameter API keys
-- **Inheritance** - Collections and folders can define auth that inherits to child requests
+- **Inheritance** - Collections and folders can define auth that inherits to child requests (`inherit` mode)
+- **No Auth** - Explicitly disable authentication for specific requests
 
 ### 📁 Collection Management
 
 - **Organized Collections** - Group related requests into collections
 - **Nested Folders** - Create hierarchical folder structures
 - **Drag & Drop** - Reorder collections, folders, and requests with drag-and-drop
-- **Collection Variables** - Define variables scoped to specific collections
-- **Collection-Level Auth** - Set authentication at collection or folder level
+- **Collection Variables** - Define variables scoped to specific collections, with separate initial (shareable) and current (local) values
+- **Collection-Level Auth** - Set authentication at collection or folder level that child requests can inherit
+- **Collection Runner** - Run all requests in a collection sequentially or in parallel, with configurable delay between requests, stop-on-error option, and multiple iterations
 
 ### 🌍 Environment Variables
 
 - **Multiple Environments** - Create separate environments (Development, Staging, Production)
 - **Variable Substitution** - Use `<<variable_name>>` syntax in URLs, headers, and body
-- **Secret Variables** - Mark sensitive variables for visual distinction
-- **Quick Environment Switching** - Easily switch between environments
+- **Secret Variables** - Mark sensitive variables for visual distinction; secrets are stored in a separate directory per workspace
+- **Initial & Current Values** - Each variable has a shareable initial value and a local-only current value
+- **Quick Environment Switching** - Easily switch between environments from the toolbar dropdown
+
+### 📜 Scripts
+
+- **Pre-Request Script** - Run JavaScript before a request is sent to dynamically modify request data or set variables
+- **Post-Request Script** - Run JavaScript after a response is received to write assertions or process response data
+- **Script Snippets** - Built-in snippet panel for common scripting patterns (both pre- and post-request)
+- **Script Output** - View console output and errors from scripts directly in the response panel
 
 ### 📊 Response Handling
 
@@ -81,21 +92,53 @@
 - **Performance Metrics** - Response time and size information
 - **Status Indicators** - Color-coded status codes for quick identification
 - **Copy to Clipboard** - Easily copy response data
+- **Script Console** - View output and errors from pre- and post-request scripts
 
 ### 📜 Request History
 
 - **Automatic History** - All sent requests are automatically saved
 - **History Browser** - Browse and search through past requests
-- **One-Click Restore** - Quickly re-send or restore previous requests
+- **One-Click Restore** - Quickly re-send or restore previous requests in a new tab
 - **Response Cache** - History includes response data for reference
+- **Configurable Limit** - Set the maximum number of history items to retain
 
 ### 🔄 Import & Export
 
 - **Postman Import** - Import collections from Postman (v2.1 format)
 - **OpenAPI Import** - Import API specifications from OpenAPI/Swagger (JSON & YAML)
-- **cURL Import** - Paste cURL commands to create requests
-- **Fetchy Native Format** - Export and import in Fetchy's native JSON format
-- **Postman Export** - Export collections to Postman-compatible format
+- **cURL Import** - Paste cURL commands to create requests instantly
+- **Postman Export** - Export collections to Postman v2.1-compatible format
+- **Workspace Export/Import** - Export an entire workspace (collections, environments, variables) as a single JSON file and import it on another machine
+
+### 💻 Code Generation
+
+Generate ready-to-use code snippets for the current request in multiple languages:
+
+| Language | Library |
+|----------|---------|
+| cURL | - |
+| JavaScript | `fetch` |
+| Python | `requests` |
+| Java | `HttpClient` |
+| C# / .NET | `HttpClient` |
+| Go | `net/http` |
+| Rust | `reqwest` |
+| C++ | `libcurl` |
+
+Variables in the request are resolved before generating the snippet.
+
+### 🗂️ OpenAPI Editor
+
+- **In-App Editor** - Edit OpenAPI specifications directly inside Fetchy with full syntax highlighting (YAML & JSON)
+- **Import to Collection** - Convert an OpenAPI spec into a Fetchy collection in one click
+
+### 🗃️ Workspaces
+
+- **Multiple Workspaces** - Create separate workspaces for different projects or clients
+- **Separate Storage Directories** - Each workspace has its own home directory (collections, environments) and secrets directory (secret variable values)
+- **Switch Workspaces** - Switch between workspaces; the app reloads with the selected workspace's data
+- **Export & Import Workspaces** - Back up and restore a full workspace to/from a single JSON file
+- **Workspace Management** - Add, rename, remove, export, and import workspaces from the Settings panel
 
 ### ⌨️ Keyboard Shortcuts
 
@@ -112,21 +155,30 @@
 | `Ctrl+E` | Open environments |
 | `Ctrl+/` | Show keyboard shortcuts |
 
-### 🎨 User Interface
+### 🎨 Themes & Customization
 
-- **Modern Dark Theme** - Easy on the eyes for long coding sessions
-- **Tab-Based Interface** - Work with multiple requests simultaneously
-- **Resizable Panels** - Customize your workspace layout
-- **Collapsible Sidebar** - Maximize your workspace when needed
-- **Syntax Highlighting** - JSON and code highlighting with CodeMirror
-- **Variable Highlighting** - Visual indication of defined/undefined variables
+- **9 Built-in Themes** - Dark, Light, Ocean, Forest, Earth, Aurora, Sunset, Candy, Rainbow
+- **Custom Themes** - Create fully custom themes by defining your own color palette (background, sidebar, card, text, border, accent, and more)
+- **Edit & Delete Custom Themes** - Manage your saved custom themes at any time
+- **Panel Layout** - Switch the response panel between a side-by-side (horizontal) and top-bottom (vertical) layout
+- **Resizable Panels** - Drag to resize the sidebar and request/response panels
+- **Collapsible Sidebar** - Hide the sidebar to maximize the working area
+- **Syntax Highlighting** - JSON and code highlighting powered by CodeMirror 6
+- **Variable Highlighting** - Visual indication when variables are defined (green) or undefined (yellow)
+
+### ⚙️ Settings
+
+- **Auto-Save** - Automatically persist changes to collections
+- **Max History Items** - Control how many request history entries are retained (10–500)
+- **Panel Layout** - Configure whether the response panel appears to the right or below the request panel
+- **Workspace Management** - Switch, create, export, and import workspaces
 
 ### 💾 Data Storage
 
-- **Customizable Home Directory** - Choose where your data is stored
-- **Data Migration** - Move your data to a new location with one click
-- **JSON Storage** - Human-readable data files
-- **Automatic Persistence** - Changes are saved automatically
+- **Workspace-Based Storage** - Each workspace stores its data in a chosen directory on your filesystem
+- **Separate Secrets Directory** - Secret variable values are stored in a dedicated directory, separate from the rest of the workspace data
+- **JSON Storage** - All data is stored as human-readable JSON files
+- **Automatic Persistence** - Changes are saved automatically (when auto-save is enabled)
 
 ---
 
@@ -134,14 +186,14 @@
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/fetchy.git
+   git clone https://github.com/AkinerAlkan94/fetchy.git
    cd fetchy
    ```
 
@@ -162,18 +214,14 @@
 
 ### Download
 
-#### Windows Portable
-Download the portable version for Windows (no installation required):
-- 📦 [**Fetchy Portable for Windows**](https://github.com/AkinerAlkan94/fetchy/releases)
-
-Simply extract and run - no installation needed!
+#### Windows
+Download the latest release for Windows:
+- 📦 [**Fetchy Releases**](https://github.com/AkinerAlkan94/fetchy/releases)
 
 ### Distribution
 
 After building, you'll find the installers in the `release` folder:
-- **Windows**: 
-  - `Fetchy Setup x.x.x.exe` (NSIS installer)
-  - `Fetchy-Portable.zip` (Portable executable - no installation required, found in `portable-binary/`)
+- **Windows**: `Fetchy Setup x.x.x.exe` (NSIS installer)
 - **macOS**: `.dmg` file
 - **Linux**: `.AppImage` file
 
@@ -183,11 +231,12 @@ After building, you'll find the installers in the `release` folder:
 
 ### Creating Your First Request
 
-1. Click the **+** button in the sidebar or press `Ctrl+N`
-2. Enter your API endpoint URL
-3. Select the HTTP method
-4. Add headers, parameters, or body as needed
-5. Click **Send** or press `Ctrl+Enter`
+1. Create or select a workspace when prompted on first launch
+2. Click the **+** button in the sidebar or press `Ctrl+N`
+3. Enter your API endpoint URL
+4. Select the HTTP method
+5. Add headers, parameters, or body as needed
+6. Click **Send** or press `Ctrl+Enter`
 
 ### Using Environment Variables
 
@@ -196,21 +245,48 @@ After building, you'll find the installers in the `release` folder:
 3. Add variables (e.g., `base_url`, `api_key`)
 4. Use variables in your requests: `<<base_url>>/api/users`
 5. Variables are highlighted in green when defined, yellow when undefined
+6. Switch environments using the dropdown in the top toolbar
 
 ### Organizing with Collections
 
 1. Create a collection for your project
 2. Add folders for different API modules
-3. Drag and drop to organize requests
-4. Set collection-level auth to apply to all requests
+3. Drag and drop to organize requests, folders, and collections
+4. Set collection-level auth to apply to all child requests
+5. Define collection variables for values shared across all requests
+
+### Running a Collection
+
+1. Right-click a collection in the sidebar and choose **Run Collection**
+2. Configure the run mode (sequential or parallel), delay, iterations, and stop-on-error behaviour
+3. Click **Run** to execute all requests and view per-request results
+
+### Using Scripts
+
+1. Open a request and select the **Pre-Script** or **Script** tab
+2. Write JavaScript code; use the built-in snippet panel for common patterns
+3. Script output and errors appear in the **Console** tab of the response panel after the request is sent
+
+### Generating Code Snippets
+
+1. Open a request
+2. Click the **Code** button (or the arrow next to it to pick a language)
+3. Copy the generated snippet for cURL, JavaScript, Python, Java, C#, Go, Rust, or C++
 
 ### Importing from Postman
 
 1. Export your collection from Postman (Collection v2.1)
 2. In Fetchy, click **Import** or press `Ctrl+I`
-3. Select "Postman Collection"
-4. Choose your exported file
-5. Your collection is now ready to use!
+3. Select "Postman Collection" and choose your exported file
+4. Your collection is now ready to use
+
+### Managing Workspaces
+
+1. Open **Settings** from the top toolbar
+2. Click **Manage Workspaces**
+3. Create a new workspace by providing a name, home directory, and secrets directory
+4. Switch between workspaces; each one maintains its own collections and environments
+5. Export a workspace to back it up and import it on another machine
 
 ---
 
@@ -218,8 +294,9 @@ After building, you'll find the installers in the `release` folder:
 
 - **Frontend**: React 18 with TypeScript
 - **UI Styling**: Tailwind CSS
-- **State Management**: Zustand with persistence
-- **Desktop Framework**: Electron
+- **State Management**: Zustand
+- **Code Editor**: CodeMirror 6
+- **Desktop Framework**: Electron 40
 - **Build Tool**: Vite
 - **Drag & Drop**: dnd-kit
 
@@ -259,12 +336,16 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ---
 
 ## 📋 Roadmap
-- [✅] Theme customization (Light theme)
-- [ ] Pre-request and test scripts
+
+- [x] Theme customization (9 built-in themes + fully custom themes)
+- [x] Pre-request and post-request scripts
+- [x] Code generation (cURL, JavaScript, Python, Java, C#, Go, Rust, C++)
+- [x] Collection runner (sequential & parallel)
+- [x] OpenAPI editor
+- [x] Workspaces with separate secrets storage
 - [ ] Response assertions
 - [ ] Request chaining
 - [ ] Request documentation/notes
-- [ ] Code generation (cURL, JavaScript, Python, etc.)
 
 ---
 
