@@ -13,7 +13,7 @@ interface GitHubRelease {
   published_at: string;
 }
 
-const CURRENT_VERSION = '1.1.0';
+const CURRENT_VERSION = __APP_VERSION__;
 const GITHUB_REPO = 'AkinerAlkan94/fetchy';
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
@@ -122,7 +122,7 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
                 <div className="flex-1">
                   <p className="font-medium mb-1">New version available!</p>
                   <p className="text-sm">
-                    Version {latestRelease.tag_name} is now available. You are currently using version {CURRENT_VERSION}.
+                    Version {latestRelease.tag_name} is now available. You are currently using version v{CURRENT_VERSION}.
                   </p>
                 </div>
               </div>
@@ -155,7 +155,7 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
               <div>
                 <p className="font-medium mb-1">You're up to date!</p>
                 <p className="text-sm">
-                  You are using the latest version ({CURRENT_VERSION}) of Fetchy.
+                  You are using the latest version (v{CURRENT_VERSION}) of Fetchy.
                 </p>
               </div>
             </div>
@@ -164,7 +164,7 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
           {!isChecking && !error && (
             <div className="mt-4 pt-4 border-t border-aki-border">
               <p className="text-xs text-aki-text-muted text-center">
-                Current Version: {CURRENT_VERSION}
+                Current Version: v{CURRENT_VERSION}
                 {latestRelease && ` • Latest Version: ${latestRelease.tag_name}`}
               </p>
             </div>

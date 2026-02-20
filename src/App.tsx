@@ -266,7 +266,7 @@ function App() {
           <img src="./logo.jpg" alt="Fetchy" className="h-8 w-8 rounded" />
           <div className="text-xl font-bold text-aki-accent">Fetchy</div>
           <span className="text-xs text-aki-text-muted italic">Local by design. Reliable by nature</span>
-          <span className="text-xs text-aki-text-muted">v1.1.0</span>
+          <span className="text-xs text-aki-text-muted">v{__APP_VERSION__}</span>
         </div>
         <div className="flex items-center gap-2">
           <EnvironmentDropdown onOpenSettings={() => setShowEnvironmentModal(true)} />

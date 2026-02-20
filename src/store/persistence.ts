@@ -199,16 +199,12 @@ export const createCustomStorage = (): StateStorage => {
   // ── Browser / localStorage fallback ────────────────────────────────────────
   return {
     getItem: (name: string): string | null => {
-      const workspaceId = getActiveBrowserWorkspaceId();
-      const key = workspaceId ? `${name}-${workspaceId}` : name;
-      const secretsKey = workspaceId ? `${name}-${workspaceId}-secrets` : `${name}-secrets`;
-
-      const raw = localStorage.getItem(key);
+      const raw = localStorage.getItem(name);
       if (!raw) return null;
 
       try {
         let stateWrapper = JSON.parse(raw);
-        const secretsRaw = localStorage.getItem(secretsKey);
+        const secretsRaw = localStorage.getItem(`${name}-secrets`);
         if (secretsRaw) {
           const secretsStorage: SecretsStorage = JSON.parse(secretsRaw);
           if (secretsStorage?.secrets) {
@@ -222,46 +218,20 @@ export const createCustomStorage = (): StateStorage => {
     },
 
     setItem: (name: string, value: string): void => {
-      const workspaceId = getActiveBrowserWorkspaceId();
-      const key = workspaceId ? `${name}-${workspaceId}` : name;
-      const secretsKey = workspaceId ? `${name}-${workspaceId}-secrets` : `${name}-secrets`;
-
       try {
         const stateWrapper = JSON.parse(value);
         const { cleanState, secretsMap } = extractSecrets(stateWrapper);
-        localStorage.setItem(key, JSON.stringify(cleanState));
+        localStorage.setItem(name, JSON.stringify(cleanState));
         const secretsStorage: SecretsStorage = { version: '1.0', secrets: secretsMap };
-        localStorage.setItem(secretsKey, JSON.stringify(secretsStorage));
+        localStorage.setItem(`${name}-secrets`, JSON.stringify(secretsStorage));
       } catch {
-        localStorage.setItem(key, value);
+        localStorage.setItem(name, value);
       }
     },
 
     removeItem: (name: string): void => {
-      const workspaceId = getActiveBrowserWorkspaceId();
-      const key = workspaceId ? `${name}-${workspaceId}` : name;
-      const secretsKey = workspaceId ? `${name}-${workspaceId}-secrets` : `${name}-secrets`;
-      localStorage.removeItem(key);
-      localStorage.removeItem(secretsKey);
+      localStorage.removeItem(name);
+      localStorage.removeItem(`${name}-secrets`);
     },
   };
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Browser workspace ID helper
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Read the active workspace ID from localStorage so browser-mode storage can
- * scope its keys per workspace, giving full isolation between workspaces.
- */
-export function getActiveBrowserWorkspaceId(): string | null {
-  try {
-    const stored = localStorage.getItem('fetchy-workspaces');
-    if (!stored) return null;
-    const config = JSON.parse(stored);
-    return config.activeWorkspaceId ?? null;
-  } catch {
-    return null;
-  }
-}
