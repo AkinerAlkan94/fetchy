@@ -14,6 +14,7 @@ import {
   Flame,
   Star,
   Aperture,
+  Skull,
 } from 'lucide-react';
 import { usePreferencesStore } from '../store/preferencesStore';
 import { CustomTheme } from '../types';
@@ -23,7 +24,7 @@ import CustomThemeEditorModal from './CustomThemeEditorModal';
 // Theme metadata for built-in themes
 // ─────────────────────────────────────────────────────────────────
 
-type BuiltinKey = 'dark' | 'light' | 'ocean' | 'forest' | 'earth' | 'aurora' | 'sunset' | 'candy' | 'rainbow';
+type BuiltinKey = 'dark' | 'light' | 'ocean' | 'forest' | 'earth' | 'aurora' | 'sunset' | 'candy' | 'rainbow' | 'dungeon';
 
 const BUILTIN_THEMES: Array<{ id: BuiltinKey; label: string; dotColor: string }> = [
   { id: 'dark', label: 'Dark', dotColor: '#e94560' },
@@ -35,6 +36,7 @@ const BUILTIN_THEMES: Array<{ id: BuiltinKey; label: string; dotColor: string }>
   { id: 'sunset', label: 'Sunset', dotColor: '#ff1500' },
   { id: 'candy', label: 'Candy', dotColor: '#ff0080' },
   { id: 'rainbow', label: 'Rainbow', dotColor: '#ffdd00' },
+  { id: 'dungeon', label: 'Dungeon', dotColor: '#8b0000' },
 ];
 
 const BUILTIN_ICONS: Record<BuiltinKey, React.ReactNode> = {
@@ -47,6 +49,7 @@ const BUILTIN_ICONS: Record<BuiltinKey, React.ReactNode> = {
   sunset: <Flame size={15} />,
   candy: <Star size={15} />,
   rainbow: <Aperture size={15} />,
+  dungeon: <Skull size={15} />,
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -67,7 +70,7 @@ const COLOR_VAR_MAP: Record<string, string> = {
 };
 
 const ALL_CSS_VARS = Object.values(COLOR_VAR_MAP);
-const THEME_CLASSES = ['light-theme', 'ocean-theme', 'forest-theme', 'earth-theme', 'aurora-theme', 'sunset-theme', 'candy-theme', 'rainbow-theme'];
+const THEME_CLASSES = ['light-theme', 'ocean-theme', 'forest-theme', 'earth-theme', 'aurora-theme', 'sunset-theme', 'candy-theme', 'rainbow-theme', 'dungeon-theme'];
 
 function applyTheme(theme: string, customThemes: CustomTheme[]) {
   const body = document.body;
@@ -108,6 +111,10 @@ function applyTheme(theme: string, customThemes: CustomTheme[]) {
       break;
     case 'rainbow':
       body.classList.add('rainbow-theme');
+      html.classList.add('dark');
+      break;
+    case 'dungeon':
+      body.classList.add('dungeon-theme');
       html.classList.add('dark');
       break;
     case 'dark':

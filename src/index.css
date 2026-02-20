@@ -165,6 +165,21 @@ body.rainbow-theme {
   --accent-hover: #e0c000;
 }
 
+body.dungeon-theme {
+  background-color: #000000;
+  color: #b0b0b0;
+  --bg-color: #000000;
+  --sidebar-color: #080808;
+  --card-color: #0d0d0d;
+  --text-color: #b0b0b0;
+  --text-muted: #484848;
+  --border-color: #1c1c1c;
+  --hover-bg: #161616;
+  --input-bg: #020202;
+  --accent: #8b0000;
+  --accent-hover: #6b0000;
+}
+
 /* Theme-aware utility classes */
 @layer utilities {
   .bg-theme-bg {

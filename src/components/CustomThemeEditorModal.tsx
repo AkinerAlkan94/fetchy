@@ -145,6 +145,21 @@ const PRESET_STARTERS: Record<string, { label: string; colors: CustomThemeColors
       accentHover: '#e0c000',
     },
   },
+  dungeon: {
+    label: 'Dungeon',
+    colors: {
+      bgColor: '#000000',
+      sidebarColor: '#080808',
+      cardColor: '#0d0d0d',
+      textColor: '#b0b0b0',
+      textMuted: '#484848',
+      borderColor: '#1c1c1c',
+      hoverBg: '#161616',
+      inputBg: '#020202',
+      accent: '#8b0000',
+      accentHover: '#6b0000',
+    },
+  },
 };
 
 const COLOR_FIELDS: Array<{ key: keyof CustomThemeColors; label: string; description: string }> = [
