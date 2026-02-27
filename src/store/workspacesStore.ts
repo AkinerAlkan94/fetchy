@@ -20,7 +20,7 @@ interface WorkspacesStore {
   switchWorkspace: (id: string) => Promise<void>;
 
   // Update workspace name / directories
-  updateWorkspace: (id: string, updates: Partial<Pick<Workspace, 'name' | 'homeDirectory' | 'secretsDirectory'>>) => Promise<void>;
+  updateWorkspace: (id: string, updates: Partial<Pick<Workspace, 'name' | 'homeDirectory' | 'secretsDirectory' | 'gitAutoSync'>>) => Promise<void>;
 
   // Export workspace data as a JSON file (Electron only)
   exportWorkspace: (id: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;

@@ -14,7 +14,46 @@ export interface AppStorageExport {
 // Check if running in Electron
 export const isElectron =
   typeof window !== 'undefined' && !!(window as any).electronAPI;
+// ─────────────────────────────────────────────────────────────────────────────
+// Git auto-sync (debounced)
+// ─────────────────────────────────────────────────────────────────────────────
 
+let gitSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Trigger a debounced git auto-commit+push if the active workspace has
+ * gitAutoSync enabled.  Called after every successful write to storage.
+ */
+function triggerGitAutoSync() {
+  if (!isElectron) return;
+  try {
+    // Dynamically import workspacesStore to avoid circular deps
+    // We read the store state lazily
+    const { useWorkspacesStore } = require('./workspacesStore');
+    const state = useWorkspacesStore.getState();
+    const active = state.workspaces.find(
+      (w: any) => w.id === state.activeWorkspaceId
+    );
+    if (!active?.gitAutoSync || !active.homeDirectory) return;
+
+    // Debounce: wait 3 seconds after last write before syncing
+    if (gitSyncTimer) clearTimeout(gitSyncTimer);
+    gitSyncTimer = setTimeout(async () => {
+      try {
+        const api = (window as any).electronAPI;
+        if (!api?.gitAddCommitPush) return;
+        await api.gitAddCommitPush({
+          directory: active.homeDirectory,
+          message: `Fetchy auto-sync ${new Date().toISOString()}`,
+        });
+      } catch (e) {
+        console.error('Git auto-sync failed:', e);
+      }
+    }, 3000);
+  } catch {
+    // workspacesStore not ready yet – ignore
+  }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // Secrets helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -197,6 +236,9 @@ export const createCustomStorage = (): StateStorage => {
           await (window as any).electronAPI.writeSecrets({
             content: JSON.stringify(secretsStorage, null, 2),
           });
+
+          // 4. Trigger git auto-sync if enabled
+          triggerGitAutoSync();
         } catch (error) {
           console.error('Error writing to file storage:', error);
         }

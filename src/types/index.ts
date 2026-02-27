@@ -134,6 +134,7 @@ export interface Workspace {
   homeDirectory: string;
   secretsDirectory: string;
   createdAt: number;
+  gitAutoSync?: boolean;
 }
 
 export interface WorkspacesConfig {
@@ -366,6 +367,50 @@ export interface SecretsStorage {
   secrets: Record<string, string>;
 }
 
+// Git types
+export interface GitCommitInfo {
+  hash: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface GitStatusResult {
+  success: boolean;
+  isRepo?: boolean;
+  branch?: string;
+  changes?: string[];
+  remoteUrl?: string;
+  lastCommit?: GitCommitInfo | null;
+  ahead?: number;
+  behind?: number;
+  hasChanges?: boolean;
+  error?: string;
+}
+
+export interface GitCheckResult {
+  available: boolean;
+  version: string;
+}
+
+export interface GitOperationResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+}
+
+export interface GitLogResult {
+  success: boolean;
+  commits?: GitCommitInfo[];
+  error?: string;
+}
+
+export interface GitRemoteResult {
+  success: boolean;
+  url?: string;
+  error?: string;
+}
+
 // Electron API type definition
 export interface ElectronAPI {
   httpRequest: (data: {
@@ -413,6 +458,19 @@ export interface ElectronAPI {
     secretsDirectory: string;
     exportData: WorkspaceExport;
   }) => Promise<{ success: boolean; workspace?: Workspace; error?: string }>;
+  // Git operations
+  gitCheck: () => Promise<GitCheckResult>;
+  gitStatus: (data: { directory: string }) => Promise<GitStatusResult>;
+  gitInit: (data: { directory: string }) => Promise<GitOperationResult>;
+  gitClone: (data: { url: string; directory: string }) => Promise<GitOperationResult>;
+  gitPull: (data: { directory: string }) => Promise<GitOperationResult>;
+  gitPush: (data: { directory: string }) => Promise<GitOperationResult>;
+  gitAddCommit: (data: { directory: string; message?: string }) => Promise<GitOperationResult>;
+  gitAddCommitPush: (data: { directory: string; message?: string }) => Promise<GitOperationResult>;
+  gitLog: (data: { directory: string; count?: number }) => Promise<GitLogResult>;
+  gitRemoteGet: (data: { directory: string }) => Promise<GitRemoteResult>;
+  gitRemoteSet: (data: { directory: string; url: string }) => Promise<GitOperationResult>;
+  gitFetch: (data: { directory: string }) => Promise<GitOperationResult>;
 }
 
 // Extend Window interface globally

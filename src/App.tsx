@@ -60,7 +60,7 @@ function App() {
   const [showEnvironmentModal, setShowEnvironmentModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'ai'>('general');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'ai' | 'git'>('general');
   const [showWorkspacesModal, setShowWorkspacesModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 

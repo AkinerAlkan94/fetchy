@@ -4,6 +4,7 @@ const fs = require('fs');
 const https = require('https');
 const http = require('http');
 const crypto = require('crypto');
+const { execFile } = require('child_process');
 
 let mainWindow;
 let customHomeDirectory = null;
@@ -743,4 +744,333 @@ ipcMain.handle('ai-request', async (event, { provider, apiKey, model, baseUrl, m
       resolve({ success: false, content: '', error: error.message });
     }
   });
+});
+
+// ─── IPC: GIT OPERATIONS ──────────────────────────────────────────────────────
+
+/**
+ * Run a git command in the given cwd.
+ * Returns { success, stdout, stderr }.
+ */
+function runGit(args, cwd, timeout = 30000) {
+  return new Promise((resolve) => {
+    const gitBin = process.platform === 'win32' ? 'git' : 'git';
+    execFile(gitBin, args, { cwd, timeout, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        resolve({ success: false, stdout: stdout || '', stderr: stderr || error.message });
+      } else {
+        resolve({ success: true, stdout: stdout || '', stderr: stderr || '' });
+      }
+    });
+  });
+}
+
+// Check if git is available on the system
+ipcMain.handle('git-check', async () => {
+  try {
+    const result = await runGit(['--version'], process.cwd(), 5000);
+    return { available: result.success, version: result.stdout.trim() };
+  } catch {
+    return { available: false, version: '' };
+  }
+});
+
+// Get full git status of the workspace directory
+ipcMain.handle('git-status', async (event, { directory }) => {
+  try {
+    if (!directory || !fs.existsSync(directory)) {
+      return { success: false, error: 'Directory does not exist' };
+    }
+
+    // Check if it's a git repo
+    const gitDir = path.join(directory, '.git');
+    const isRepo = fs.existsSync(gitDir);
+    if (!isRepo) {
+      return { success: true, isRepo: false };
+    }
+
+    // Get branch name
+    const branchResult = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], directory);
+    const branch = branchResult.success ? branchResult.stdout.trim() : 'unknown';
+
+    // Get status (porcelain for machine-readable)
+    const statusResult = await runGit(['status', '--porcelain'], directory);
+    const changes = statusResult.success
+      ? statusResult.stdout
+          .trim()
+          .split('\n')
+          .filter((l) => l.trim() !== '')
+      : [];
+
+    // Get remote URL
+    const remoteResult = await runGit(['remote', 'get-url', 'origin'], directory);
+    const remoteUrl = remoteResult.success ? remoteResult.stdout.trim() : '';
+
+    // Get last commit info
+    const logResult = await runGit(
+      ['log', '-1', '--format=%H|%s|%an|%ai'],
+      directory
+    );
+    let lastCommit = null;
+    if (logResult.success && logResult.stdout.trim()) {
+      const parts = logResult.stdout.trim().split('|');
+      lastCommit = {
+        hash: parts[0] || '',
+        message: parts[1] || '',
+        author: parts[2] || '',
+        date: parts[3] || '',
+      };
+    }
+
+    // Check if ahead/behind remote
+    let ahead = 0;
+    let behind = 0;
+    if (remoteUrl) {
+      const aheadResult = await runGit(['rev-list', '--count', `origin/${branch}..HEAD`], directory);
+      if (aheadResult.success) ahead = parseInt(aheadResult.stdout.trim()) || 0;
+      const behindResult = await runGit(['rev-list', '--count', `HEAD..origin/${branch}`], directory);
+      if (behindResult.success) behind = parseInt(behindResult.stdout.trim()) || 0;
+    }
+
+    return {
+      success: true,
+      isRepo: true,
+      branch,
+      changes,
+      remoteUrl,
+      lastCommit,
+      ahead,
+      behind,
+      hasChanges: changes.length > 0,
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Initialize a git repository
+ipcMain.handle('git-init', async (event, { directory }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
+
+    const result = await runGit(['init'], directory);
+    if (!result.success) return { success: false, error: result.stderr };
+
+    // Create a default .gitignore if it doesn't exist
+    const gitignorePath = path.join(directory, '.gitignore');
+    if (!fs.existsSync(gitignorePath)) {
+      fs.writeFileSync(
+        gitignorePath,
+        '# Fetchy secrets - never commit\n.secrets/\nai-secrets.json\nfetchy-secrets.json\n\n# OS files\n.DS_Store\nThumbs.db\n',
+        'utf-8'
+      );
+    }
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Clone a repository into a directory
+ipcMain.handle('git-clone', async (event, { url, directory }) => {
+  try {
+    if (!url) return { success: false, error: 'No repository URL specified' };
+    if (!directory) return { success: false, error: 'No directory specified' };
+
+    // Clone into a temp name then move contents, or clone directly
+    // We clone into the directory directly. If directory exists and is not empty,
+    // we clone into a subdirectory then move.
+    const parentDir = path.dirname(directory);
+    if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
+
+    // If directory already exists and has files, we need to handle it
+    if (fs.existsSync(directory)) {
+      const files = fs.readdirSync(directory);
+      if (files.length > 0) {
+        // Directory is not empty. Clone to a temp directory then merge.
+        const tmpDir = directory + '_git_clone_tmp_' + Date.now();
+        const cloneResult = await runGit(['clone', url, tmpDir], parentDir, 120000);
+        if (!cloneResult.success) {
+          return { success: false, error: cloneResult.stderr };
+        }
+        // Move .git folder and all files from tmpDir to directory
+        const clonedFiles = fs.readdirSync(tmpDir);
+        for (const f of clonedFiles) {
+          const src = path.join(tmpDir, f);
+          const dest = path.join(directory, f);
+          if (!fs.existsSync(dest)) {
+            fs.renameSync(src, dest);
+          }
+        }
+        // Remove tmp dir
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        return { success: true };
+      }
+    }
+
+    // Directory is empty or doesn't exist – clone directly
+    const result = await runGit(['clone', url, directory], parentDir, 120000);
+    if (!result.success) {
+      return { success: false, error: result.stderr };
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Pull from remote
+ipcMain.handle('git-pull', async (event, { directory }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    const result = await runGit(['pull'], directory, 120000);
+    if (!result.success) return { success: false, error: result.stderr };
+    return { success: true, output: result.stdout.trim() };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Push to remote
+ipcMain.handle('git-push', async (event, { directory }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    const result = await runGit(['push'], directory, 120000);
+    if (!result.success) return { success: false, error: result.stderr };
+    return { success: true, output: result.stdout.trim() };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Stage all files and commit with a message
+ipcMain.handle('git-add-commit', async (event, { directory, message }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    if (!message) message = `Fetchy auto-commit ${new Date().toISOString()}`;
+
+    // Stage all changes
+    const addResult = await runGit(['add', '-A'], directory);
+    if (!addResult.success) return { success: false, error: addResult.stderr };
+
+    // Commit
+    const commitResult = await runGit(['commit', '-m', message], directory);
+    if (!commitResult.success) {
+      // "nothing to commit" is not really an error
+      if (commitResult.stdout.includes('nothing to commit') || commitResult.stderr.includes('nothing to commit')) {
+        return { success: true, output: 'Nothing to commit' };
+      }
+      return { success: false, error: commitResult.stderr || commitResult.stdout };
+    }
+    return { success: true, output: commitResult.stdout.trim() };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Stage all, commit, and push (for auto-sync)
+ipcMain.handle('git-add-commit-push', async (event, { directory, message }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    if (!message) message = `Fetchy auto-sync ${new Date().toISOString()}`;
+
+    // Stage all
+    const addResult = await runGit(['add', '-A'], directory);
+    if (!addResult.success) return { success: false, error: addResult.stderr };
+
+    // Commit
+    const commitResult = await runGit(['commit', '-m', message], directory);
+    if (!commitResult.success) {
+      if (commitResult.stdout.includes('nothing to commit') || commitResult.stderr.includes('nothing to commit')) {
+        return { success: true, output: 'Nothing to commit' };
+      }
+      return { success: false, error: commitResult.stderr || commitResult.stdout };
+    }
+
+    // Push
+    const pushResult = await runGit(['push'], directory, 120000);
+    if (!pushResult.success) return { success: false, error: pushResult.stderr };
+    return { success: true, output: 'Changes committed and pushed' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get recent git log
+ipcMain.handle('git-log', async (event, { directory, count }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    const n = count || 20;
+    const result = await runGit(
+      ['log', `--max-count=${n}`, '--format=%H|%s|%an|%ai'],
+      directory
+    );
+    if (!result.success) return { success: false, error: result.stderr };
+
+    const commits = result.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.trim() !== '')
+      .map((line) => {
+        const parts = line.split('|');
+        return {
+          hash: parts[0] || '',
+          message: parts[1] || '',
+          author: parts[2] || '',
+          date: parts[3] || '',
+        };
+      });
+    return { success: true, commits };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get remote URL
+ipcMain.handle('git-remote-get', async (event, { directory }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    const result = await runGit(['remote', 'get-url', 'origin'], directory);
+    if (!result.success) return { success: false, url: '' };
+    return { success: true, url: result.stdout.trim() };
+  } catch (error) {
+    return { success: false, url: '' };
+  }
+});
+
+// Set remote URL
+ipcMain.handle('git-remote-set', async (event, { directory, url }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    if (!url) return { success: false, error: 'No URL specified' };
+
+    // Check if remote 'origin' exists
+    const checkResult = await runGit(['remote'], directory);
+    const remotes = checkResult.success ? checkResult.stdout.trim().split('\n') : [];
+
+    let result;
+    if (remotes.includes('origin')) {
+      result = await runGit(['remote', 'set-url', 'origin', url], directory);
+    } else {
+      result = await runGit(['remote', 'add', 'origin', url], directory);
+    }
+    if (!result.success) return { success: false, error: result.stderr };
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Fetch from remote (without merging)
+ipcMain.handle('git-fetch', async (event, { directory }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    const result = await runGit(['fetch', '--all'], directory, 60000);
+    if (!result.success) return { success: false, error: result.stderr };
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });

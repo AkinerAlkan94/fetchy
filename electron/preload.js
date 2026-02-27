@@ -38,4 +38,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // AI request (provider-agnostic, routed in main process)
   aiRequest: (data) => ipcRenderer.invoke('ai-request', data),
+
+  // Git operations (uses system git)
+  gitCheck: () => ipcRenderer.invoke('git-check'),
+  gitStatus: (data) => ipcRenderer.invoke('git-status', data),
+  gitInit: (data) => ipcRenderer.invoke('git-init', data),
+  gitClone: (data) => ipcRenderer.invoke('git-clone', data),
+  gitPull: (data) => ipcRenderer.invoke('git-pull', data),
+  gitPush: (data) => ipcRenderer.invoke('git-push', data),
+  gitAddCommit: (data) => ipcRenderer.invoke('git-add-commit', data),
+  gitAddCommitPush: (data) => ipcRenderer.invoke('git-add-commit-push', data),
+  gitLog: (data) => ipcRenderer.invoke('git-log', data),
+  gitRemoteGet: (data) => ipcRenderer.invoke('git-remote-get', data),
+  gitRemoteSet: (data) => ipcRenderer.invoke('git-remote-set', data),
+  gitFetch: (data) => ipcRenderer.invoke('git-fetch', data),
 });
