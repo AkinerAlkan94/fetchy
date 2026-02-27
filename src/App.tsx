@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { HelpCircle, Settings, RefreshCw, PanelLeftClose, PanelLeftOpen, Rows, Columns } from 'lucide-react';
+import { HelpCircle, Settings, RefreshCw, PanelLeftClose, PanelLeftOpen, Rows, Columns, GitBranch, Download, Loader2 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import TabBar from './components/TabBar';
 import RequestPanel from './components/RequestPanel';
@@ -63,6 +63,11 @@ function App() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'ai' | 'git'>('general');
   const [showWorkspacesModal, setShowWorkspacesModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+
+  // ── Git pull-available badge ──────────────────────────────────────────────
+  const [gitPullAvailable, setGitPullAvailable] = useState(false);
+  const [gitPullCount, setGitPullCount] = useState(0);
+  const [isPullingFromBadge, setIsPullingFromBadge] = useState(false);
 
   const mainPanelRef = useRef<HTMLDivElement>(null);
   const prevTabIdsRef = useRef<Set<string>>(new Set());
@@ -144,6 +149,47 @@ function App() {
     return () => window.removeEventListener('open-ai-settings', handleOpenAISettings);
   }, []);
 
+  // ── Git 5-minute pull-available polling ────────────────────────────────────
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.gitCheckPullAvailable || !activeWorkspace?.homeDirectory) return;
+
+    const checkPull = async () => {
+      try {
+        const result = await api.gitCheckPullAvailable({ directory: activeWorkspace.homeDirectory });
+        if (result?.isRepo && result?.hasPull) {
+          setGitPullAvailable(true);
+          setGitPullCount(result.count ?? 0);
+        } else if (result?.isRepo) {
+          setGitPullAvailable(false);
+          setGitPullCount(0);
+        }
+      } catch {
+        // silently ignore check errors
+      }
+    };
+
+    // Run immediately on mount / workspace change, then every 5 minutes
+    checkPull();
+    const interval = setInterval(checkPull, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [activeWorkspace?.homeDirectory, activeWorkspace?.id]);
+
+  // ── Listen for external storage file changes (e.g. git pull outside app) ──
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.onStorageFileChanged) return;
+
+    const listener = api.onStorageFileChanged(() => {
+      // Rehydrate the zustand store from disk
+      useAppStore.persist.rehydrate();
+    });
+
+    return () => {
+      api.offStorageFileChanged?.(listener);
+    };
+  }, []);
+
   const activeTab = tabs.find(t => t.id === activeTabId);
   const hasActiveRequest = activeTab?.type === 'request';
   const hasActiveOpenApi = activeTab?.type === 'openapi';
@@ -216,6 +262,25 @@ function App() {
     setImportType('postman-env');
     setShowImportModal(true);
   }, []);
+
+  const handleGitPullFromBadge = useCallback(async () => {
+    const api = window.electronAPI;
+    if (!api?.gitPull || !activeWorkspace?.homeDirectory || isPullingFromBadge) return;
+    setIsPullingFromBadge(true);
+    try {
+      const result = await api.gitPull({ directory: activeWorkspace.homeDirectory });
+      if (result?.success) {
+        // Reload store from updated files
+        await useAppStore.persist.rehydrate();
+        setGitPullAvailable(false);
+        setGitPullCount(0);
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setIsPullingFromBadge(false);
+    }
+  }, [activeWorkspace?.homeDirectory, isPullingFromBadge]);
 
   // Resize handlers
   const handleSidebarResize = useCallback((delta: number) => {
@@ -293,6 +358,23 @@ function App() {
           <div className="text-xl font-bold text-fetchy-accent">Fetchy</div>
           <span className="text-xs text-fetchy-text-muted italic">Local by design. Reliable by nature</span>
           <span className="text-xs text-fetchy-text-muted">v{__APP_VERSION__}</span>
+          {gitPullAvailable && (
+            <Tooltip content={`${gitPullCount} new commit${gitPullCount !== 1 ? 's' : ''} available — click to pull`}>
+              <button
+                onClick={handleGitPullFromBadge}
+                disabled={isPullingFromBadge}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-600 hover:bg-blue-500 disabled:opacity-70 text-white text-xs font-medium transition-colors"
+              >
+                {isPullingFromBadge ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <GitBranch size={12} />
+                )}
+                Repository Pull Available
+                {!isPullingFromBadge && <Download size={12} />}
+              </button>
+            </Tooltip>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <EnvironmentDropdown onOpenSettings={() => setShowEnvironmentModal(true)} />

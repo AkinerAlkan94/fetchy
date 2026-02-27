@@ -10,6 +10,45 @@ let mainWindow;
 let customHomeDirectory = null;
 let customSecretsDirectory = null;
 
+// ─── STORAGE FILE WATCHER ─────────────────────────────────────────────────────
+
+let storageWatcher = null;
+let lastWriteTimestamp = 0; // updated whenever we write fetchy-storage.json ourselves
+let storageWatchDebounceTimer = null;
+
+function startStorageWatcher(directory) {
+  stopStorageWatcher();
+  if (!directory || !fs.existsSync(directory)) return;
+  try {
+    storageWatcher = fs.watch(directory, { persistent: false }, (eventType, filename) => {
+      if (!filename || !filename.endsWith('.json')) return;
+      // Ignore changes that are our own writes (within 2 seconds)
+      if (Date.now() - lastWriteTimestamp < 2000) return;
+      // Debounce rapid file events
+      if (storageWatchDebounceTimer) clearTimeout(storageWatchDebounceTimer);
+      storageWatchDebounceTimer = setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('storage-file-changed', { filename });
+        }
+      }, 500);
+    });
+    storageWatcher.on('error', () => stopStorageWatcher());
+  } catch (e) {
+    console.error('Failed to start storage watcher:', e);
+  }
+}
+
+function stopStorageWatcher() {
+  if (storageWatcher) {
+    try { storageWatcher.close(); } catch {}
+    storageWatcher = null;
+  }
+  if (storageWatchDebounceTimer) {
+    clearTimeout(storageWatchDebounceTimer);
+    storageWatchDebounceTimer = null;
+  }
+}
+
 // ─── PREFERENCES ─────────────────────────────────────────────────────────────
 
 function getPreferencesFilePath() {
@@ -143,7 +182,13 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    stopStorageWatcher();
   });
+
+  // Start watching the active workspace's home directory for external file changes
+  if (customHomeDirectory) {
+    startStorageWatcher(customHomeDirectory);
+  }
 }
 
 Menu.setApplicationMenu(null);
@@ -209,6 +254,7 @@ ipcMain.handle('write-data', async (event, { filename, content }) => {
   try {
     const dataDir = getEffectiveDataDirectory();
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    lastWriteTimestamp = Date.now(); // track our own writes to suppress watcher events
     fs.writeFileSync(path.join(dataDir, filename), content, 'utf-8');
     return true;
   } catch (error) {
@@ -339,6 +385,12 @@ ipcMain.handle('save-workspaces', (event, config) => {
     if (active) {
       customHomeDirectory = active.homeDirectory || null;
       customSecretsDirectory = active.secretsDirectory || null;
+      // Restart watcher for the new active workspace directory
+      if (customHomeDirectory) {
+        startStorageWatcher(customHomeDirectory);
+      } else {
+        stopStorageWatcher();
+      }
     }
   }
   return success;
@@ -1073,5 +1125,44 @@ ipcMain.handle('git-fetch', async (event, { directory }) => {
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+// Check if there are commits available to pull (fetch + compare with upstream)
+ipcMain.handle('git-check-pull-available', async (event, { directory }) => {
+  try {
+    if (!directory || !fs.existsSync(directory)) {
+      return { isRepo: false, hasPull: false, count: 0 };
+    }
+
+    // Check if it's actually a git repo
+    const gitDir = path.join(directory, '.git');
+    if (!fs.existsSync(gitDir)) {
+      return { isRepo: false, hasPull: false, count: 0 };
+    }
+
+    // Check if there is a remote configured
+    const remoteResult = await runGit(['remote', 'get-url', 'origin'], directory);
+    if (!remoteResult.success || !remoteResult.stdout.trim()) {
+      return { isRepo: true, hasPull: false, count: 0, noRemote: true };
+    }
+
+    // Fetch from remote (quietly)
+    await runGit(['fetch', 'origin'], directory, 60000);
+
+    // Get current branch name
+    const branchResult = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], directory);
+    const branch = branchResult.success ? branchResult.stdout.trim() : 'main';
+
+    // Count commits that are on remote but not local (i.e., available to pull)
+    const countResult = await runGit(
+      ['rev-list', '--count', `HEAD..origin/${branch}`],
+      directory
+    );
+
+    const count = countResult.success ? (parseInt(countResult.stdout.trim()) || 0) : 0;
+    return { isRepo: true, hasPull: count > 0, count };
+  } catch (error) {
+    return { isRepo: false, hasPull: false, count: 0, error: error.message };
   }
 });

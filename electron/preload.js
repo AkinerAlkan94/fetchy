@@ -52,4 +52,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gitRemoteGet: (data) => ipcRenderer.invoke('git-remote-get', data),
   gitRemoteSet: (data) => ipcRenderer.invoke('git-remote-set', data),
   gitFetch: (data) => ipcRenderer.invoke('git-fetch', data),
+  gitCheckPullAvailable: (data) => ipcRenderer.invoke('git-check-pull-available', data),
+
+  // Storage file change events (fired when file changes externally, e.g. after git pull)
+  onStorageFileChanged: (callback) => {
+    const listener = (_, data) => callback(data);
+    ipcRenderer.on('storage-file-changed', listener);
+    return listener; // return so caller can remove it
+  },
+  offStorageFileChanged: (listener) => ipcRenderer.removeListener('storage-file-changed', listener),
 });

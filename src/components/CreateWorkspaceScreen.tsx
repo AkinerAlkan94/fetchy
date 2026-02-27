@@ -97,19 +97,53 @@ export default function CreateWorkspaceScreen({ onCreated }: CreateWorkspaceScre
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col items-center justify-center bg-fetchy-bg overflow-auto p-6">
-      <div className="w-full max-w-lg space-y-8">
+    <div className="h-screen w-screen flex flex-col items-center justify-start bg-fetchy-bg overflow-y-auto p-6 pt-8">
+      <div className="w-full max-w-lg space-y-5">
         {/* Logo + headline */}
-        <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex flex-col items-center gap-2 text-center">
           <div className="flex items-center gap-3">
-            <img src="./logo.jpg" alt="Fetchy" className="h-12 w-12 rounded-lg shadow-lg" />
-            <span className="text-3xl font-bold text-fetchy-accent">Fetchy</span>
+            <img src="./logo.jpg" alt="Fetchy" className="h-10 w-10 rounded-lg shadow-lg" />
+            <span className="text-2xl font-bold text-fetchy-accent">Fetchy</span>
           </div>
-          <h1 className="text-xl font-semibold text-white">Create your first workspace</h1>
-          <p className="text-sm text-fetchy-text-muted max-w-sm">
+          <h1 className="text-lg font-semibold text-white">Create your first workspace</h1>
+          <p className="text-xs text-fetchy-text-muted max-w-sm">
             Workspaces keep your collections, environments, APIs and secrets fully isolated from one
             another. You must create one to continue.
           </p>
+        </div>
+
+        {/* Feature badges */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          {/* Isolation badge */}
+          <div className="relative group">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs cursor-default select-none">
+              <Layers size={11} /> Isolation
+            </span>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[#1a1a2e] border border-[#2d2d44] rounded-lg p-3 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl text-left">
+              Every workspace has its own collections, environments, history, and secrets — completely separated from other workspaces.
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#2d2d44]" />
+            </div>
+          </div>
+          {/* Security badge */}
+          <div className="relative group">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs cursor-default select-none">
+              <Lock size={11} /> Security
+            </span>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[#1a1a2e] border border-[#2d2d44] rounded-lg p-3 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl text-left">
+              Secret variable values are stored in a separate directory so you can safely version-control your home directory without exposing secrets.
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#2d2d44]" />
+            </div>
+          </div>
+          {/* Git Native badge */}
+          <div className="relative group">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs cursor-default select-none">
+              <GitBranch size={11} /> Git Native
+            </span>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-[#1a1a2e] border border-[#2d2d44] rounded-lg p-3 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl text-left">
+              Clone a Git repository as your workspace to keep collections and environments version-controlled and synced across machines.
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#2d2d44]" />
+            </div>
+          </div>
         </div>
 
         {/* Form card */}
@@ -430,37 +464,6 @@ export default function CreateWorkspaceScreen({ onCreated }: CreateWorkspaceScre
               )}
             </>
           )}
-        </div>
-
-        {/* Info boxes */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-500">
-          <div className="bg-[#1a1a2e] border border-[#2d2d44] rounded-lg p-3 space-y-1">
-            <p className="font-semibold text-gray-400 flex items-center gap-1">
-              <Layers size={11} /> Isolation
-            </p>
-            <p>
-              Every workspace has its own collections, environments, history, and secrets — completely
-              separated from other workspaces.
-            </p>
-          </div>
-          <div className="bg-[#1a1a2e] border border-[#2d2d44] rounded-lg p-3 space-y-1">
-            <p className="font-semibold text-gray-400 flex items-center gap-1">
-              <Lock size={11} /> Security
-            </p>
-            <p>
-              Secret variable values are stored in a separate directory so you can safely version-control
-              your home directory without exposing secrets.
-            </p>
-          </div>
-          <div className="bg-[#1a1a2e] border border-[#2d2d44] rounded-lg p-3 space-y-1">
-            <p className="font-semibold text-gray-400 flex items-center gap-1">
-              <GitBranch size={11} /> Git Native
-            </p>
-            <p>
-              Clone a Git repository as your workspace to keep collections and environments
-              version-controlled and synced across machines.
-            </p>
-          </div>
         </div>
       </div>
     </div>

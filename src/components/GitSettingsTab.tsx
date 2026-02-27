@@ -24,6 +24,7 @@ import type {
   GitCommitInfo,
   Workspace,
 } from '../types';
+import { useAppStore } from '../store/appStore';
 
 interface GitSettingsTabProps {
   workspace: Workspace | null;
@@ -149,6 +150,8 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate }: GitSett
     if (result.success) {
       showOp('success', result.output || 'Pull completed');
       refreshStatus();
+      // Reload the app store so UI reflects changes from the pulled files
+      await useAppStore.persist.rehydrate();
     } else {
       showOp('error', result.error || 'Pull failed');
     }
