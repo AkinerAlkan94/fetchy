@@ -69,6 +69,87 @@ jobs:
           git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
           git push
 
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          NEW_TAG="${{ steps.version.outputs.tag }}"
+
+          # Find the previous release tag (most recent tag before the current commit)
+          PREV_TAG=$(git tag --sort=-v:refname | head -n 1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found — using full log"
+            RANGE="HEAD"
+          else
+            echo "Previous tag: $PREV_TAG"
+            RANGE="${PREV_TAG}..HEAD"
+          fi
+
+          # Collect commits, categorise them, and format for humans
+          # Categories: feat/feature, fix, refactor/chore, docs, style, test, other
+          echo "## What's New in ${NEW_TAG}" > changelog.md
+          echo "" >> changelog.md
+
+          # Features
+          FEATS=$(git log $RANGE --pretty=format:"%s" --no-merges | grep -iE "^feat(\(|:| )" || true)
+          if [ -n "$FEATS" ]; then
+            echo "### ✨ New Features" >> changelog.md
+            echo "$FEATS" | while IFS= read -r line; do
+              # Strip conventional-commit prefix for cleaner display
+              CLEAN=$(echo "$line" | sed -E 's/^feat(\([^)]*\))?[: ]*//')
+              echo "- ${CLEAN}" >> changelog.md
+            done
+            echo "" >> changelog.md
+          fi
+
+          # Fixes
+          FIXES=$(git log $RANGE --pretty=format:"%s" --no-merges | grep -iE "^fix(\(|:| )" || true)
+          if [ -n "$FIXES" ]; then
+            echo "### 🐛 Bug Fixes" >> changelog.md
+            echo "$FIXES" | while IFS= read -r line; do
+              CLEAN=$(echo "$line" | sed -E 's/^fix(\([^)]*\))?[: ]*//')
+              echo "- ${CLEAN}" >> changelog.md
+            done
+            echo "" >> changelog.md
+          fi
+
+          # Improvements (refactor, perf, style, chore)
+          IMPROVEMENTS=$(git log $RANGE --pretty=format:"%s" --no-merges | grep -iE "^(refactor|perf|style|chore|improve)(\(|:| )" | grep -viE "^chore.*bump version" || true)
+          if [ -n "$IMPROVEMENTS" ]; then
+            echo "### 🔧 Improvements" >> changelog.md
+            echo "$IMPROVEMENTS" | while IFS= read -r line; do
+              CLEAN=$(echo "$line" | sed -E 's/^(refactor|perf|style|chore|improve)(\([^)]*\))?[: ]*//')
+              echo "- ${CLEAN}" >> changelog.md
+            done
+            echo "" >> changelog.md
+          fi
+
+          # Everything else (skip version bumps and merge commits)
+          OTHERS=$(git log $RANGE --pretty=format:"%s" --no-merges \
+            | grep -viE "^(feat|fix|refactor|perf|style|chore|improve|docs|test|ci)(\(|:| )" \
+            | grep -viE "bump version|merge" || true)
+          if [ -n "$OTHERS" ]; then
+            echo "### 📦 Other Changes" >> changelog.md
+            echo "$OTHERS" | while IFS= read -r line; do
+              echo "- ${line}" >> changelog.md
+            done
+            echo "" >> changelog.md
+          fi
+
+          echo "---" >> changelog.md
+          echo "Download the installer below to update, or use **Check for Updates** inside Fetchy." >> changelog.md
+
+          echo "Changelog generated:"
+          cat changelog.md
+
+          # Store for the release body (use multiline output)
+          {
+            echo "body<<CHANGELOG_EOF"
+            cat changelog.md
+            echo "CHANGELOG_EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Build Windows installer
         run: npm run electron:build
         env:
@@ -79,14 +160,11 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Fetchy ${{ steps.version.outputs.tag }}
-          body: |
-            ## Fetchy ${{ steps.version.outputs.tag }}
-
-            ### Windows Installer
-            Download the `.exe` installer below to install Fetchy on Windows.
+          body: ${{ steps.changelog.outputs.body }}
           files: |
             release/*.exe
             release/*.exe.blockmap
+            release/latest.yml
           draft: false
           prerelease: false
         env:

@@ -1,80 +1,165 @@
-import { X, Download, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { X, Download, AlertCircle, CheckCircle, Loader2, RotateCw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface UpdateModalProps {
   onClose: () => void;
 }
 
-interface GitHubRelease {
-  tag_name: string;
-  name: string;
-  html_url: string;
-  body: string;
-  published_at: string;
+type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error';
+
+interface DownloadProgress {
+  percent: number;
+  bytesPerSecond: number;
+  transferred: number;
+  total: number;
+}
+
+interface UpdateInfo {
+  version?: string;
+  releaseNotes?: string | { note: string }[] | null;
+  releaseName?: string;
+  releaseDate?: string;
 }
 
 const CURRENT_VERSION = __APP_VERSION__;
-const GITHUB_REPO = 'AkinerAlkan94/fetchy';
-const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+
+// Electron API may not be available in browser dev mode
+const api = (window as any).electronAPI;
+const isElectron = !!api?.updaterCheck;
 
 export default function UpdateModal({ onClose }: UpdateModalProps) {
-  const [isChecking, setIsChecking] = useState(true);
+  const [status, setStatus] = useState<UpdateStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [latestRelease, setLatestRelease] = useState<GitHubRelease | null>(null);
-  const [hasUpdate, setHasUpdate] = useState(false);
+  const [progress, setProgress] = useState<DownloadProgress | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const listenerRef = useRef<any>(null);
 
+  // Listen for updater events pushed from the main process
+  useEffect(() => {
+    if (!isElectron) return;
+
+    const listener = api.onUpdaterEvent((data: any) => {
+      switch (data.event) {
+        case 'checking':
+          setStatus('checking');
+          break;
+        case 'available':
+          setStatus('available');
+          setUpdateInfo(data.info ?? null);
+          break;
+        case 'not-available':
+          setStatus('not-available');
+          setUpdateInfo(data.info ?? null);
+          break;
+        case 'downloading':
+          setStatus('downloading');
+          setProgress(data.progress ?? null);
+          break;
+        case 'downloaded':
+          setStatus('downloaded');
+          setUpdateInfo(data.info ?? null);
+          break;
+        case 'error':
+          setStatus('error');
+          setError(data.error ?? 'Unknown error');
+          break;
+      }
+    });
+
+    listenerRef.current = listener;
+
+    return () => {
+      if (listenerRef.current) {
+        api.offUpdaterEvent(listenerRef.current);
+      }
+    };
+  }, []);
+
+  // Trigger check on mount
   useEffect(() => {
     checkForUpdates();
   }, []);
 
-  const compareVersions = (current: string, latest: string): boolean => {
-    // Remove 'v' prefix if present
-    const cleanCurrent = current.replace(/^v/, '');
-    const cleanLatest = latest.replace(/^v/, '');
-
-    const currentParts = cleanCurrent.split('.').map(Number);
-    const latestParts = cleanLatest.split('.').map(Number);
-
-    for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
-      const curr = currentParts[i] || 0;
-      const lat = latestParts[i] || 0;
-
-      if (lat > curr) return true;
-      if (lat < curr) return false;
-    }
-
-    return false;
-  };
-
-  const checkForUpdates = async () => {
-    setIsChecking(true);
+  const checkForUpdates = useCallback(async () => {
+    setStatus('checking');
     setError(null);
+    setProgress(null);
+    setUpdateInfo(null);
 
-    try {
-      const response = await fetch(GITHUB_API_URL);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch release information');
+    if (!isElectron) {
+      // Fallback for browser dev mode – use GitHub API directly
+      try {
+        const res = await fetch('https://api.github.com/repos/AkinerAlkan94/fetchy/releases/latest');
+        if (!res.ok) throw new Error('Failed to fetch release info');
+        const release = await res.json();
+        const latest = (release.tag_name ?? '').replace(/^v/, '');
+        const current = CURRENT_VERSION.replace(/^v/, '');
+        const hasUpdate = compareVersions(current, latest);
+        setUpdateInfo({
+          version: release.tag_name,
+          releaseNotes: release.body,
+          releaseName: release.name,
+          releaseDate: release.published_at,
+        });
+        setStatus(hasUpdate ? 'available' : 'not-available');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to check for updates');
+        setStatus('error');
       }
-
-      const release: GitHubRelease = await response.json();
-      setLatestRelease(release);
-
-      // Compare versions
-      const updateAvailable = compareVersions(CURRENT_VERSION, release.tag_name);
-      setHasUpdate(updateAvailable);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to check for updates');
-    } finally {
-      setIsChecking(false);
+      return;
     }
+
+    // Electron native updater
+    const result = await api.updaterCheck();
+    if (!result.success) {
+      setError(result.error ?? 'Failed to check for updates');
+      setStatus('error');
+    }
+    // Status will be updated via the updater-event listener
+  }, []);
+
+  const handleDownload = useCallback(async () => {
+    if (!isElectron) {
+      // In browser dev mode, open release page
+      window.open('https://github.com/AkinerAlkan94/fetchy/releases/latest', '_blank');
+      return;
+    }
+    setProgress({ percent: 0, bytesPerSecond: 0, transferred: 0, total: 0 });
+    setStatus('downloading');
+    const result = await api.updaterDownload();
+    if (!result.success) {
+      setError(result.error ?? 'Download failed');
+      setStatus('error');
+    }
+  }, []);
+
+  const handleInstall = useCallback(() => {
+    if (isElectron) {
+      api.updaterInstall();
+    }
+  }, []);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleOpenReleasePage = () => {
-    if (latestRelease) {
-      window.open(latestRelease.html_url, '_blank');
+  const releaseNotes = (() => {
+    if (!updateInfo?.releaseNotes) return null;
+    if (typeof updateInfo.releaseNotes === 'string') return updateInfo.releaseNotes;
+    if (Array.isArray(updateInfo.releaseNotes)) {
+      return updateInfo.releaseNotes.map((n: any) => (typeof n === 'string' ? n : n.note)).join('\n');
     }
-  };
+    return null;
+  })();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
@@ -92,14 +177,16 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
 
         {/* Content */}
         <div className="p-6">
-          {isChecking && (
+          {/* Checking */}
+          {status === 'checking' && (
             <div className="flex flex-col items-center justify-center py-8">
               <Loader2 className="w-12 h-12 text-fetchy-accent animate-spin mb-4" />
               <p className="text-fetchy-text-muted">Checking for updates...</p>
             </div>
           )}
 
-          {error && !isChecking && (
+          {/* Error */}
+          {status === 'error' && (
             <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3 text-red-400">
               <AlertCircle size={20} className="shrink-0 mt-0.5" />
               <div>
@@ -115,41 +202,98 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
             </div>
           )}
 
-          {!isChecking && !error && hasUpdate && latestRelease && (
+          {/* Update available */}
+          {status === 'available' && updateInfo && (
             <div className="space-y-4">
               <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg flex items-start gap-3 text-green-400">
                 <Download size={20} className="shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-medium mb-1">New version available!</p>
                   <p className="text-sm">
-                    Version {latestRelease.tag_name} is now available. You are currently using version v{CURRENT_VERSION}.
+                    Version {updateInfo.version} is ready. You are currently on v{CURRENT_VERSION}.
                   </p>
                 </div>
               </div>
 
-              <div>
-                <h3 className="font-medium text-fetchy-text mb-2">Release: {latestRelease.name}</h3>
-                <div className="text-sm text-fetchy-text-muted mb-2">
-                  Released on {new Date(latestRelease.published_at).toLocaleDateString()}
+              {releaseNotes && (
+                <div>
+                  {updateInfo.releaseName && (
+                    <h3 className="font-medium text-fetchy-text mb-2">
+                      Release: {updateInfo.releaseName}
+                    </h3>
+                  )}
+                  {updateInfo.releaseDate && (
+                    <div className="text-sm text-fetchy-text-muted mb-2">
+                      Released on {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                    </div>
+                  )}
+                  <div className="bg-fetchy-bg border border-fetchy-border rounded p-4 max-h-64 overflow-y-auto">
+                    <pre className="text-sm text-fetchy-text whitespace-pre-wrap font-mono">
+                      {releaseNotes}
+                    </pre>
+                  </div>
                 </div>
-                <div className="bg-fetchy-bg border border-fetchy-border rounded p-4 max-h-64 overflow-y-auto">
-                  <pre className="text-sm text-fetchy-text whitespace-pre-wrap font-mono">
-                    {latestRelease.body || 'No release notes available.'}
-                  </pre>
-                </div>
-              </div>
+              )}
 
               <button
-                onClick={handleOpenReleasePage}
+                onClick={handleDownload}
                 className="w-full btn btn-primary flex items-center justify-center gap-2"
               >
                 <Download size={18} />
-                Download Latest Version
+                Download &amp; Install Update
               </button>
             </div>
           )}
 
-          {!isChecking && !error && !hasUpdate && latestRelease && (
+          {/* Downloading */}
+          {status === 'downloading' && progress && (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center justify-center py-4">
+                <Loader2 className="w-10 h-10 text-fetchy-accent animate-spin mb-4" />
+                <p className="text-fetchy-text font-medium mb-1">Downloading update...</p>
+                <p className="text-sm text-fetchy-text-muted">
+                  {formatBytes(progress.transferred)} / {formatBytes(progress.total)}
+                  {progress.bytesPerSecond > 0 && ` — ${formatBytes(progress.bytesPerSecond)}/s`}
+                </p>
+              </div>
+              {/* Progress bar */}
+              <div className="w-full bg-fetchy-border rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-fetchy-accent h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(progress.percent, 100).toFixed(1)}%` }}
+                />
+              </div>
+              <p className="text-xs text-fetchy-text-muted text-center">
+                {progress.percent.toFixed(1)}% complete
+              </p>
+            </div>
+          )}
+
+          {/* Downloaded – ready to install */}
+          {status === 'downloaded' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg flex items-start gap-3 text-green-400">
+                <CheckCircle size={20} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium mb-1">Update downloaded!</p>
+                  <p className="text-sm">
+                    The update has been downloaded and is ready to install. Fetchy will restart to apply the update.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleInstall}
+                className="w-full btn btn-primary flex items-center justify-center gap-2"
+              >
+                <RotateCw size={18} />
+                Restart &amp; Install
+              </button>
+            </div>
+          )}
+
+          {/* Up to date */}
+          {status === 'not-available' && (
             <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg flex items-start gap-3 text-green-400">
               <CheckCircle size={20} className="shrink-0 mt-0.5" />
               <div>
@@ -161,11 +305,12 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
             </div>
           )}
 
-          {!isChecking && !error && (
+          {/* Version footer */}
+          {status !== 'checking' && status !== 'idle' && (
             <div className="mt-4 pt-4 border-t border-fetchy-border">
               <p className="text-xs text-fetchy-text-muted text-center">
                 Current Version: v{CURRENT_VERSION}
-                {latestRelease && ` • Latest Version: ${latestRelease.tag_name}`}
+                {updateInfo?.version && ` • Latest Version: ${updateInfo.version}`}
               </p>
             </div>
           )}
@@ -173,6 +318,12 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-fetchy-border bg-fetchy-sidebar">
+          {status !== 'checking' && status !== 'downloading' && (
+            <button onClick={checkForUpdates} className="btn btn-secondary flex items-center gap-2">
+              <RotateCw size={14} />
+              Re-check
+            </button>
+          )}
           <button onClick={onClose} className="btn btn-secondary">
             Close
           </button>
@@ -180,5 +331,15 @@ export default function UpdateModal({ onClose }: UpdateModalProps) {
       </div>
     </div>
   );
+}
+
+function compareVersions(current: string, latest: string): boolean {
+  const c = current.replace(/^v/, '').split('.').map(Number);
+  const l = latest.replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < Math.max(c.length, l.length); i++) {
+    if ((l[i] || 0) > (c[i] || 0)) return true;
+    if ((l[i] || 0) < (c[i] || 0)) return false;
+  }
+  return false;
 }
 

@@ -61,4 +61,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return listener; // return so caller can remove it
   },
   offStorageFileChanged: (listener) => ipcRenderer.removeListener('storage-file-changed', listener),
+
+  // Auto-updater
+  updaterCheck: () => ipcRenderer.invoke('updater-check'),
+  updaterDownload: () => ipcRenderer.invoke('updater-download'),
+  updaterInstall: () => ipcRenderer.invoke('updater-install'),
+  onUpdaterEvent: (callback) => {
+    const listener = (_, data) => callback(data);
+    ipcRenderer.on('updater-event', listener);
+    return listener;
+  },
+  offUpdaterEvent: (listener) => ipcRenderer.removeListener('updater-event', listener),
+
+  // Post-update info (shown after restart)
+  getPostUpdateInfo: () => ipcRenderer.invoke('get-post-update-info'),
+  clearPostUpdateInfo: () => ipcRenderer.invoke('clear-post-update-info'),
 });

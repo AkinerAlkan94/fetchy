@@ -16,6 +16,7 @@ import WorkspacesModal from './components/WorkspacesModal';
 import WorkspaceDropdown from './components/WorkspaceDropdown';
 import CreateWorkspaceScreen from './components/CreateWorkspaceScreen';
 import UpdateModal from './components/UpdateModal';
+import UpdateBanner from './components/UpdateBanner';
 import ThemeToggle from './components/ThemeToggle';
 import ResizeHandle from './components/ResizeHandle';
 import Tooltip from './components/Tooltip';
@@ -63,6 +64,35 @@ function App() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'ai' | 'git'>('general');
   const [showWorkspacesModal, setShowWorkspacesModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [postUpdateInfo, setPostUpdateInfo] = useState<any>(null);
+
+  // ── Post-update banner (shown once after a successful update) ─────────────
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.getPostUpdateInfo) return;
+    api.getPostUpdateInfo().then((info: any) => {
+      if (info) setPostUpdateInfo(info);
+    });
+  }, []);
+
+  const dismissUpdateBanner = useCallback(() => {
+    setPostUpdateInfo(null);
+    const api = (window as any).electronAPI;
+    api?.clearPostUpdateInfo?.();
+  }, []);
+
+  // ── App-update notification badge ────────────────────────────────────────
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.onUpdaterEvent) return;
+    const listener = api.onUpdaterEvent((data: any) => {
+      if (data.event === 'available') setUpdateAvailable(true);
+      if (data.event === 'not-available') setUpdateAvailable(false);
+      if (data.event === 'downloaded') setUpdateAvailable(true);
+    });
+    return () => api.offUpdaterEvent(listener);
+  }, []);
 
   // ── Git pull-available badge ──────────────────────────────────────────────
   const [gitPullAvailable, setGitPullAvailable] = useState(false);
@@ -351,6 +381,11 @@ function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-fetchy-bg overflow-hidden">
+      {/* Post-update banner */}
+      {postUpdateInfo && (
+        <UpdateBanner info={postUpdateInfo} onDismiss={dismissUpdateBanner} />
+      )}
+
       {/* Top bar */}
       <div className="h-12 bg-fetchy-sidebar border-b border-fetchy-border flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -496,12 +531,15 @@ function App() {
 
         <ThemeToggle />
 
-        <Tooltip content="Check for Updates">
+        <Tooltip content={updateAvailable ? 'Update Available!' : 'Check for Updates'}>
           <button
             onClick={() => setShowUpdateModal(true)}
-            className="p-2 hover:bg-fetchy-border rounded text-fetchy-text-muted hover:text-fetchy-text"
+            className="relative p-2 hover:bg-fetchy-border rounded text-fetchy-text-muted hover:text-fetchy-text"
           >
             <RefreshCw size={18} />
+            {updateAvailable && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-fetchy-bg animate-pulse" />
+            )}
           </button>
         </Tooltip>
 
