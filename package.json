@@ -46,6 +46,11 @@
       "uninstallerIcon": "build/icons/win/icon.ico",
       "installerHeaderIcon": "build/icons/win/icon.ico"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "AkinerAlkan94",
+      "repo": "fetchy"
+    },
     "afterPack": "./scripts/after-pack.js",
     "mac": {
       "target": "dmg",
@@ -69,6 +74,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
     "codemirror": "^6.0.1",
+    "electron-updater": "^6.8.3",
     "immer": "^10.0.4",
     "js-yaml": "^4.1.0",
     "lucide-react": "^0.358.0",

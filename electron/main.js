@@ -6,6 +6,7 @@ const https = require('https');
 const http = require('http');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
+const { initUpdater } = require('./updater');
 
 /**
  * Atomic file write: writes content to a temporary file in the same directory,
@@ -199,6 +200,9 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // Initialise auto-updater (silent background check after launch)
+  initUpdater(mainWindow, { silentCheck: app.isPackaged });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
