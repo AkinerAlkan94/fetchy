@@ -10,27 +10,27 @@
 
 > Security + Reliability blockers
 
-- [ ] **#1 · Sandbox script execution** `Security` `Medium`
+- [x] **#1 · Sandbox script execution** `Security` `Medium`
   > `new Function()` in renderer gives full access to `window.electronAPI`, filesystem, secrets
   >
   > **Action:** Run user scripts in a Web Worker or `isolated-vm` with a strict API allowlist; no access to `window`, `document`, or `electronAPI`
 
-- [ ] **#2 · Sanitize file paths in IPC** `Security` `Low`
+- [x] **#2 · Sanitize file paths in IPC** `Security` `Low`
   > `read-data`/`write-data` accept unsanitized filenames, enabling `../../` traversal
   >
   > **Action:** `path.resolve()` + verify result starts with the expected data directory; reject anything else
 
-- [ ] **#3 · Enable TLS verification by default** `Security` `Low`
+- [x] **#3 · Enable TLS verification by default** `Security` `Low`
   > `rejectUnauthorized: false` hardcoded on all outbound connections including AI calls carrying API keys
   >
   > **Action:** Default to `true`; add a per-request "Disable SSL verification" toggle for user HTTP requests only; never disable for AI API calls
 
-- [ ] **#4 · Atomic file writes** `Reliability` `Low`
+- [x] **#4 · Atomic file writes** `Reliability` `Low`
   > `writeFileSync` directly to the target path; crash mid-write = corrupt workspace
   >
   > **Action:** Write to `filename.tmp`, then `fs.renameSync` to final path (atomic on NTFS/ext4/APFS)
 
-- [ ] **#5 · Add React Error Boundary** `Reliability` `Low`
+- [x] **#5 · Add React Error Boundary** `Reliability` `Low`
   > Any unhandled exception in the component tree white-screens the entire app
   >
   > **Action:** Wrap root `<App>` in an Error Boundary with a recovery UI and "Reload" action
