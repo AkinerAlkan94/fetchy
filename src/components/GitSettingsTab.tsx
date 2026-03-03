@@ -170,7 +170,7 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
   const handlePull = useCallback(async () => {
     if (!api || !homeDir) return;
     showOp('loading', 'Pulling from remote...');
-    const result = await api.gitPull({ directory: homeDir });
+    const result = await api.gitPull({ directory: homeDir }) as any;
     if (result.success) {
       showOp('success', result.output || 'Pull completed');
       // Invalidate write cache so rehydrate reads fresh data from disk
@@ -179,9 +179,19 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
       // Reload the app store so UI reflects changes from the pulled files
       await useAppStore.persist.rehydrate();
     } else {
-      // Check if pull failed due to merge conflicts
-      const errorMsg = result.error || '';
-      if (errorMsg.includes('CONFLICT') || errorMsg.includes('conflict') || errorMsg.includes('Merge conflict')) {
+      // Check if pull resulted in merge conflicts using the mergeConflict flag
+      // (set by the backend when .git/MERGE_HEAD exists after a failed pull)
+      const hasMergeConflict = result.mergeConflict === true;
+      if (!hasMergeConflict) {
+        // Also fall back to checking the merge state directly in case
+        // the flag wasn't set (older backend or edge case)
+        const mergingRes = await api.gitIsMerging({ directory: homeDir });
+        if (mergingRes.merging) {
+          result.mergeConflict = true;
+        }
+      }
+
+      if (result.mergeConflict) {
         showOp('error', 'Pull resulted in merge conflicts. Resolve them using the 3-Way Merge Editor.');
         // Refresh to pick up conflict state
         await refreshStatus();
@@ -190,7 +200,7 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
           setTimeout(() => onOpenConflictResolver(), 300);
         }
       } else {
-        showOp('error', errorMsg || 'Pull failed');
+        showOp('error', result.error || 'Pull failed');
       }
     }
   }, [api, homeDir, showOp, refreshStatus, onOpenConflictResolver]);
@@ -204,7 +214,13 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
       showOp('success', result.output || 'Push completed');
       refreshStatus();
     } else {
-      showOp('error', result.error || 'Push failed');
+      const errorMsg = result.error || '';
+      // Detect when push is rejected because remote has new commits
+      if (errorMsg.includes('rejected') || errorMsg.includes('non-fast-forward') || errorMsg.includes('fetch first')) {
+        showOp('error', 'Push rejected — remote has new commits. Pull first, then push.');
+      } else {
+        showOp('error', errorMsg || 'Push failed');
+      }
     }
   }, [api, homeDir, showOp, refreshStatus]);
 

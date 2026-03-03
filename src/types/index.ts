@@ -401,6 +401,8 @@ export interface GitOperationResult {
   success: boolean;
   output?: string;
   error?: string;
+  /** Set on pull failure when a merge conflict is detected */
+  mergeConflict?: boolean;
 }
 
 export interface GitLogResult {
@@ -507,7 +509,7 @@ export interface ElectronAPI {
   onStorageFileChanged: (callback: () => void) => (() => void);
   offStorageFileChanged?: (listener: () => void) => void;
   // Pull availability check
-  gitCheckPullAvailable: (data: { directory: string }) => Promise<{ available: boolean; behind?: number; isRepo?: boolean; hasPull?: boolean; count?: number }>;
+  gitCheckPullAvailable: (data: { directory: string }) => Promise<{ isRepo: boolean; hasPull: boolean; count: number; noRemote?: boolean; error?: string }>;
 }
 
 // Extend Window interface globally

@@ -542,6 +542,8 @@ ipcMain.handle('save-workspaces', (event, config) => {
     if (active) {
       customHomeDirectory = active.homeDirectory || null;
       customSecretsDirectory = active.secretsDirectory || null;
+      // Ensure history.json is excluded from git tracking for git-native workspaces
+      if (customHomeDirectory) ensureHistoryJsonIgnored(customHomeDirectory);
       // Restart watcher for the new active workspace directory
       if (customHomeDirectory) {
         startStorageWatcher(customHomeDirectory);
@@ -1131,14 +1133,15 @@ ipcMain.handle('git-status', async (event, { directory }) => {
     const remoteResult = await runGit(['remote', 'get-url', 'origin'], directory);
     const remoteUrl = remoteResult.success ? remoteResult.stdout.trim() : '';
 
-    // Get last commit info
+    // Get last commit info — use record separator to avoid issues with pipes in messages
+    const logSep = '\x1e';
     const logResult = await runGit(
-      ['log', '-1', '--format=%H|%s|%an|%ai'],
+      ['log', '-1', `--format=%H${logSep}%s${logSep}%an${logSep}%ai`],
       directory
     );
     let lastCommit = null;
     if (logResult.success && logResult.stdout.trim()) {
-      const parts = logResult.stdout.trim().split('|');
+      const parts = logResult.stdout.trim().split(logSep);
       lastCommit = {
         hash: parts[0] || '',
         message: parts[1] || '',
@@ -1173,6 +1176,32 @@ ipcMain.handle('git-status', async (event, { directory }) => {
   }
 });
 
+/**
+ * Ensures history.json is listed in .gitignore for a git-native workspace.
+ * Creates or appends to .gitignore without clobbering existing content.
+ */
+function ensureHistoryJsonIgnored(directory) {
+  try {
+    if (!directory || !fs.existsSync(path.join(directory, '.git'))) return;
+    const gitignorePath = path.join(directory, '.gitignore');
+    let content = '';
+    if (fs.existsSync(gitignorePath)) {
+      content = fs.readFileSync(gitignorePath, 'utf-8');
+    }
+    const lines = content.split(/\r?\n/).map((l) => l.trim());
+    if (!lines.includes('history.json')) {
+      const separator = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+      fs.writeFileSync(
+        gitignorePath,
+        content + separator + '\n# Fetchy request history - local only, never commit\nhistory.json\n',
+        'utf-8'
+      );
+    }
+  } catch (e) {
+    console.error('Failed to update .gitignore for history.json:', e);
+  }
+}
+
 // Initialize a git repository
 ipcMain.handle('git-init', async (event, { directory }) => {
   try {
@@ -1187,9 +1216,11 @@ ipcMain.handle('git-init', async (event, { directory }) => {
     if (!fs.existsSync(gitignorePath)) {
       fs.writeFileSync(
         gitignorePath,
-        '# Fetchy secrets - never commit\n.secrets/\nai-secrets.json\nfetchy-secrets.json\n\n# OS files\n.DS_Store\nThumbs.db\n',
+        '# Fetchy secrets - never commit\n.secrets/\nai-secrets.json\nfetchy-secrets.json\n\n# Fetchy request history - local only, never commit\nhistory.json\n\n# OS files\n.DS_Store\nThumbs.db\n',
         'utf-8'
       );
+    } else {
+      ensureHistoryJsonIgnored(directory);
     }
 
     return { success: true };
@@ -1214,23 +1245,32 @@ ipcMain.handle('git-clone', async (event, { url, directory }) => {
     if (fs.existsSync(directory)) {
       const files = fs.readdirSync(directory);
       if (files.length > 0) {
-        // Directory is not empty. Clone to a temp directory then merge.
+        // Directory is not empty. Clone to a temp directory then move everything over.
         const tmpDir = directory + '_git_clone_tmp_' + Date.now();
         const cloneResult = await runGit(['clone', url, tmpDir], parentDir, 120000);
         if (!cloneResult.success) {
           return { success: false, error: cloneResult.stderr };
         }
-        // Move .git folder and all files from tmpDir to directory
-        const clonedFiles = fs.readdirSync(tmpDir);
-        for (const f of clonedFiles) {
-          const src = path.join(tmpDir, f);
-          const dest = path.join(directory, f);
-          if (!fs.existsSync(dest)) {
+        // Move .git folder and all files from tmpDir to directory.
+        // Use withFileTypes to include dotfiles (like .git, .gitignore).
+        const clonedEntries = fs.readdirSync(tmpDir, { withFileTypes: true });
+        for (const entry of clonedEntries) {
+          const src = path.join(tmpDir, entry.name);
+          const dest = path.join(directory, entry.name);
+          if (fs.existsSync(dest)) {
+            // If it's the .git directory from clone, always overwrite
+            if (entry.name === '.git') {
+              fs.rmSync(dest, { recursive: true, force: true });
+              fs.renameSync(src, dest);
+            }
+            // Otherwise keep existing file to preserve user data
+          } else {
             fs.renameSync(src, dest);
           }
         }
         // Remove tmp dir
         fs.rmSync(tmpDir, { recursive: true, force: true });
+        ensureHistoryJsonIgnored(directory);
         return { success: true };
       }
     }
@@ -1240,6 +1280,7 @@ ipcMain.handle('git-clone', async (event, { url, directory }) => {
     if (!result.success) {
       return { success: false, error: result.stderr };
     }
+    ensureHistoryJsonIgnored(directory);
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1250,8 +1291,45 @@ ipcMain.handle('git-clone', async (event, { url, directory }) => {
 ipcMain.handle('git-pull', async (event, { directory }) => {
   try {
     if (!directory) return { success: false, error: 'No directory specified' };
-    const result = await runGit(['pull'], directory, 120000);
-    if (!result.success) return { success: false, error: result.stderr };
+
+    // Check for uncommitted changes first
+    const statusCheck = await runGit(['status', '--porcelain'], directory);
+    const hasUncommitted = statusCheck.success && statusCheck.stdout.trim().length > 0;
+    if (hasUncommitted) {
+      // Auto-stash uncommitted changes before pulling
+      const stashResult = await runGit(['stash', 'push', '-m', 'Fetchy auto-stash before pull'], directory);
+      if (!stashResult.success) {
+        return { success: false, error: 'Failed to stash local changes before pull: ' + stashResult.stderr };
+      }
+    }
+
+    const result = await runGit(['pull', '--no-rebase'], directory, 120000);
+
+    if (!result.success) {
+      // Check if pull resulted in merge conflicts (merge is still in progress)
+      const mergePath = path.join(directory, '.git', 'MERGE_HEAD');
+      const isMerging = fs.existsSync(mergePath);
+      // Combine stdout + stderr for full context — git outputs conflict info to stdout
+      const fullOutput = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+      return {
+        success: false,
+        error: fullOutput || 'Pull failed',
+        mergeConflict: isMerging,
+      };
+    }
+
+    // Pop stash if we stashed earlier
+    if (hasUncommitted) {
+      const popResult = await runGit(['stash', 'pop'], directory);
+      if (!popResult.success) {
+        // Stash pop conflict — notify user but pull itself succeeded
+        return {
+          success: true,
+          output: (result.stdout.trim() || 'Pull completed') + '\n⚠ Could not restore local changes from stash. Use `git stash pop` manually.',
+        };
+      }
+    }
+
     return { success: true, output: result.stdout.trim() };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1263,8 +1341,12 @@ ipcMain.handle('git-push', async (event, { directory }) => {
   try {
     if (!directory) return { success: false, error: 'No directory specified' };
     const result = await runGit(['push'], directory, 120000);
-    if (!result.success) return { success: false, error: result.stderr };
-    return { success: true, output: result.stdout.trim() };
+    if (!result.success) {
+      // Combine stdout + stderr for full context
+      const fullOutput = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+      return { success: false, error: fullOutput || 'Push failed' };
+    }
+    return { success: true, output: result.stdout.trim() || result.stderr.trim() };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -1324,12 +1406,14 @@ ipcMain.handle('git-add-commit-push', async (event, { directory, message }) => {
 });
 
 // Get recent git log
+// Uses a unique record separator (ASCII 0x1E) to avoid conflicts with commit message content
+const GIT_LOG_SEP = '\x1e';
 ipcMain.handle('git-log', async (event, { directory, count }) => {
   try {
     if (!directory) return { success: false, error: 'No directory specified' };
     const n = count || 20;
     const result = await runGit(
-      ['log', `--max-count=${n}`, '--format=%H|%s|%an|%ai'],
+      ['log', `--max-count=${n}`, `--format=%H${GIT_LOG_SEP}%s${GIT_LOG_SEP}%an${GIT_LOG_SEP}%ai`],
       directory
     );
     if (!result.success) return { success: false, error: result.stderr };
@@ -1339,7 +1423,7 @@ ipcMain.handle('git-log', async (event, { directory, count }) => {
       .split('\n')
       .filter((l) => l.trim() !== '')
       .map((line) => {
-        const parts = line.split('|');
+        const parts = line.split(GIT_LOG_SEP);
         return {
           hash: parts[0] || '',
           message: parts[1] || '',

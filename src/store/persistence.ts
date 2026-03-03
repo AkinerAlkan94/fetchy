@@ -24,6 +24,7 @@ let gitSyncTimer: ReturnType<typeof setTimeout> | null = null;
 /**
  * Trigger a debounced git auto-commit+push if the active workspace has
  * gitAutoSync enabled.  Called after every successful write to storage.
+ * Skips sync when a merge is in progress to avoid committing half-resolved conflicts.
  */
 function triggerGitAutoSync() {
   if (!isElectron) return;
@@ -40,6 +41,16 @@ function triggerGitAutoSync() {
       try {
         const api = (window as any).electronAPI;
         if (!api?.gitAddCommitPush) return;
+
+        // Do NOT auto-sync while a merge conflict is in progress
+        if (api.gitIsMerging) {
+          const mergeState = await api.gitIsMerging({ directory: active.homeDirectory });
+          if (mergeState?.merging) {
+            console.warn('Git auto-sync skipped: merge in progress');
+            return;
+          }
+        }
+
         await api.gitAddCommitPush({
           directory: active.homeDirectory,
           message: `Fetchy auto-sync ${new Date().toISOString()}`,

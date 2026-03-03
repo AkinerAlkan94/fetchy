@@ -50,6 +50,8 @@ interface FileConflictData {
   /** Original working copy content (may have conflict markers) */
   originalContent: string;
   isLoading: boolean;
+  /** Whether conflict data has been loaded from git */
+  loaded: boolean;
   error?: string;
 }
 
@@ -95,6 +97,7 @@ export default function ResolveConflictsDialog({
       mergedContent: '',
       originalContent: '',
       isLoading: false,
+      loaded: false,
     }));
     setFiles(initialFiles);
     setActiveFileIndex(0);
@@ -106,8 +109,9 @@ export default function ResolveConflictsDialog({
   // ── Load conflict data for the active file ────────────────────────────
   useEffect(() => {
     if (!isOpen || !api || !homeDirectory || !activeFile) return;
-    // Only load if we haven't loaded yet
-    if (activeFile.isLoading || activeFile.oursContent || activeFile.error) return;
+    // Only load if we haven't loaded yet — use a dedicated flag to avoid
+    // infinite reload loops when oursContent is legitimately empty
+    if (activeFile.isLoading || activeFile.loaded || activeFile.error) return;
 
     const loadFileData = async () => {
       setFiles((prev) =>
@@ -129,13 +133,13 @@ export default function ResolveConflictsDialog({
         const baseContent = baseRes.success ? baseRes.content : '';
         const workingContent = workingRes.success ? workingRes.content : '';
 
-        // Start with ours as the initial merged content (user can edit from there)
         setFiles((prev) =>
           prev.map((f, i) =>
             i === activeFileIndex
               ? {
                   ...f,
                   isLoading: false,
+                  loaded: true,
                   oursContent,
                   theirsContent,
                   baseContent,

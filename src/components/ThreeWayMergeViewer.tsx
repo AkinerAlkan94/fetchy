@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { computeLineDiff, type DiffLine } from '../utils/mergeConflict';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -153,9 +153,10 @@ export default function ThreeWayMergeViewer({
   onMergedContentChange,
   readOnly = false,
 }: ThreeWayMergeViewerProps) {
-  // Compute diffs: base→ours and base→theirs
-  const leftDiff = computeLineDiff(baseContent, oursContent);
-  const rightDiff = computeLineDiff(baseContent, theirsContent);
+  // Compute diffs: base→ours and base→theirs (memoized to avoid expensive
+  // re-computations when only merged content changes during editing)
+  const leftDiff = useMemo(() => computeLineDiff(baseContent, oursContent), [baseContent, oursContent]);
+  const rightDiff = useMemo(() => computeLineDiff(baseContent, theirsContent), [baseContent, theirsContent]);
 
   // Synchronized scrolling across the three panes
   const [scrollTop, setScrollTop] = useState(0);
@@ -224,10 +225,22 @@ export default function ThreeWayMergeViewer({
           </div>
 
           {/* Editable area with line numbers */}
-          <div className="flex-1 flex min-h-0 overflow-hidden">
-            {/* Line numbers gutter */}
-            <div className="w-10 bg-[#0a0a15] border-r border-[#2d2d44] overflow-hidden select-none shrink-0">
-              <div className="font-mono text-[11px] leading-[18px] text-gray-600 text-right pr-2 pt-[3px]">
+          <div className="flex-1 flex min-h-0 overflow-hidden relative">
+            {/* Line numbers gutter — scrolled in sync with the textarea */}
+            <div
+              ref={(el) => {
+                // Store gutter ref for scroll sync
+                if (el) (el as any).__gutterEl = el;
+              }}
+              className="w-10 bg-[#0a0a15] border-r border-[#2d2d44] overflow-hidden select-none shrink-0"
+            >
+              <div
+                className="font-mono text-[11px] leading-[18px] text-gray-600 text-right pr-2 pt-[3px]"
+                style={{
+                  transform: `translateY(-${scrollTop}px)`,
+                  willChange: 'transform',
+                }}
+              >
                 {mergedLines.map((_, i) => (
                   <div key={i}>{i + 1}</div>
                 ))}

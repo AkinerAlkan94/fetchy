@@ -101,9 +101,10 @@ export function parseConflictMarkers(content: string): ConflictHunk[] {
 
 /**
  * Check if a string contains Git conflict markers.
+ * Uses multiline matching so markers anywhere in the file are detected.
  */
 export function hasConflictMarkers(content: string): boolean {
-  return MARKER_OURS.test(content);
+  return /^<{7}\s/m.test(content);
 }
 
 // ── Line-Level Diff ─────────────────────────────────────────────────────────
@@ -276,38 +277,39 @@ export function stripConflictMarkersToOurs(content: string): string {
 export function stripConflictMarkersToTheirs(content: string): string {
   const lines = content.split('\n');
   const result: string[] = [];
-  let skip = true;
-  let inTheirs = false;
+  // inConflict tracks whether we are inside a conflict block at all
+  let inConflict = false;
+  // collectTheirs tracks whether to collect lines (theirs section)
+  let collectTheirs = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
     if (MARKER_OURS.test(line)) {
-      skip = true;
-      inTheirs = false;
+      // Entering a conflict block — skip ours section
+      inConflict = true;
+      collectTheirs = false;
       continue;
     }
     if (MARKER_BASE.test(line)) {
-      skip = true;
-      inTheirs = false;
+      // Base section inside conflict — skip
+      collectTheirs = false;
       continue;
     }
     if (MARKER_SEPARATOR.test(line)) {
-      skip = false;
-      inTheirs = true;
+      // Separator — start collecting theirs lines
+      collectTheirs = true;
       continue;
     }
     if (MARKER_THEIRS.test(line)) {
-      skip = false;
-      inTheirs = false;
+      // End of conflict block
+      inConflict = false;
+      collectTheirs = false;
       continue;
     }
 
-    // Outside any conflict block — include unconditionally
-    if (!inTheirs && !skip) {
-      result.push(line);
-    } else if (inTheirs && !skip) {
-      result.push(line);
-    } else if (!MARKER_OURS.test(line) && !skip) {
+    // Include line if: outside a conflict block, or inside the theirs section
+    if (!inConflict || collectTheirs) {
       result.push(line);
     }
   }
