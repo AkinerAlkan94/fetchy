@@ -41,8 +41,11 @@ function startStorageWatcher(directory) {
   stopStorageWatcher();
   if (!directory || !fs.existsSync(directory)) return;
   try {
-    storageWatcher = fs.watch(directory, { persistent: false }, (eventType, filename) => {
+    // Use recursive: true to watch subdirectories (collections/, environments/, etc.)
+    storageWatcher = fs.watch(directory, { persistent: false, recursive: true }, (eventType, filename) => {
       if (!filename || !filename.endsWith('.json')) return;
+      // Ignore changes in .secrets directory
+      if (filename.startsWith('.secrets') || filename.startsWith('.secrets/') || filename.startsWith('.secrets\\')) return;
       // Ignore changes that are our own writes (within 2 seconds)
       if (Date.now() - lastWriteTimestamp < 2000) return;
       // Debounce rapid file events
@@ -378,11 +381,41 @@ ipcMain.handle('write-data', async (event, { filename, content }) => {
     const dataDir = getEffectiveDataDirectory();
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
     const filePath = safePath(dataDir, filename);
+    // Ensure parent directory exists (for split storage subdirectories)
+    const parentDir = path.dirname(filePath);
+    if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
     lastWriteTimestamp = Date.now(); // track our own writes to suppress watcher events
     safeWriteFileSync(filePath, content, 'utf-8');
     return true;
   } catch (error) {
     console.error('Error writing data:', error);
+    return false;
+  }
+});
+
+// List JSON files in a subdirectory of the data directory
+ipcMain.handle('list-data-dir', async (event, subDir) => {
+  try {
+    const baseDir = getEffectiveDataDirectory();
+    const targetDir = safePath(baseDir, subDir);
+    if (!fs.existsSync(targetDir)) return [];
+    return fs.readdirSync(targetDir).filter(f => f.endsWith('.json'));
+  } catch (error) {
+    console.error('Error listing data dir:', error);
+    return [];
+  }
+});
+
+// Delete a file from the data directory
+ipcMain.handle('delete-data-file', async (event, filename) => {
+  try {
+    const dataDir = getEffectiveDataDirectory();
+    const filePath = safePath(dataDir, filename);
+    lastWriteTimestamp = Date.now();
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    return true;
+  } catch (error) {
+    console.error('Error deleting data file:', error);
     return false;
   }
 });
@@ -529,6 +562,70 @@ ipcMain.handle('select-directory', async (event, { title } = {}) => {
   return null;
 });
 
+/**
+ * Read all split storage files from a workspace home directory and assemble
+ * into a single state object. Supports both old single-file format (migration)
+ * and new split-file format.
+ */
+function readSplitStorageSync(homeDir) {
+  const result = { collections: [], environments: [], openApiDocuments: [], history: [], meta: {} };
+
+  // Check for old single-file format
+  const oldPath = path.join(homeDir, 'fetchy-storage.json');
+  if (fs.existsSync(oldPath)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(oldPath, 'utf-8'));
+      const state = raw.state || raw;
+      result.collections = state.collections || [];
+      result.environments = state.environments || [];
+      result.openApiDocuments = state.openApiDocuments || [];
+      result.history = state.history || [];
+      result.meta = {
+        activeEnvironmentId: state.activeEnvironmentId ?? null,
+        sidebarWidth: state.sidebarWidth ?? 280,
+        sidebarCollapsed: state.sidebarCollapsed ?? false,
+        requestPanelWidth: state.requestPanelWidth ?? 50,
+        panelLayout: state.panelLayout ?? 'horizontal',
+      };
+      return result;
+    } catch { /* fall through to split format */ }
+  }
+
+  // Read split format
+  const metaPath = path.join(homeDir, 'meta.json');
+  if (fs.existsSync(metaPath)) {
+    try { result.meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch {}
+  }
+
+  const collectionsDir = path.join(homeDir, 'collections');
+  if (fs.existsSync(collectionsDir)) {
+    for (const f of fs.readdirSync(collectionsDir).filter(f => f.endsWith('.json'))) {
+      try { result.collections.push(JSON.parse(fs.readFileSync(path.join(collectionsDir, f), 'utf-8'))); } catch {}
+    }
+  }
+
+  const envsDir = path.join(homeDir, 'environments');
+  if (fs.existsSync(envsDir)) {
+    for (const f of fs.readdirSync(envsDir).filter(f => f.endsWith('.json'))) {
+      try { result.environments.push(JSON.parse(fs.readFileSync(path.join(envsDir, f), 'utf-8'))); } catch {}
+    }
+  }
+
+  const historyPath = path.join(homeDir, 'history.json');
+  if (fs.existsSync(historyPath)) {
+    try { result.history = JSON.parse(fs.readFileSync(historyPath, 'utf-8')); } catch {}
+  }
+
+  const openapiDir = path.join(homeDir, 'openapi-docs');
+  if (fs.existsSync(openapiDir)) {
+    for (const f of fs.readdirSync(openapiDir).filter(f => f.endsWith('.json'))) {
+      try { result.openApiDocuments.push(JSON.parse(fs.readFileSync(path.join(openapiDir, f), 'utf-8'))); } catch {}
+    }
+  }
+
+  return result;
+}
+
 // Export a workspace's data (home + secrets) to a single JSON file via save dialog
 ipcMain.handle('export-workspace-to-json', async (event, { workspaceId }) => {
   try {
@@ -536,12 +633,22 @@ ipcMain.handle('export-workspace-to-json', async (event, { workspaceId }) => {
     const workspace = config.workspaces.find((w) => w.id === workspaceId);
     if (!workspace) return { success: false, error: 'Workspace not found' };
 
-    // Read public data
-    let publicData = null;
-    const homeDataPath = path.join(workspace.homeDirectory, 'fetchy-storage.json');
-    if (fs.existsSync(homeDataPath)) {
-      publicData = JSON.parse(fs.readFileSync(homeDataPath, 'utf-8'));
-    }
+    // Read public data (supports both old and new format)
+    const storageData = readSplitStorageSync(workspace.homeDirectory);
+    const publicData = {
+      state: {
+        collections: storageData.collections,
+        environments: storageData.environments,
+        activeEnvironmentId: storageData.meta.activeEnvironmentId ?? null,
+        history: storageData.history,
+        sidebarWidth: storageData.meta.sidebarWidth ?? 280,
+        sidebarCollapsed: storageData.meta.sidebarCollapsed ?? false,
+        requestPanelWidth: storageData.meta.requestPanelWidth ?? 50,
+        panelLayout: storageData.meta.panelLayout ?? 'horizontal',
+        openApiDocuments: storageData.openApiDocuments,
+      },
+      version: 0,
+    };
 
     // Read secrets
     let secretsData = null;
@@ -583,11 +690,50 @@ ipcMain.handle('import-workspace-from-json', async (event, { name, homeDirectory
     if (!fs.existsSync(secretsDirectory)) fs.mkdirSync(secretsDirectory, { recursive: true });
 
     if (exportData.publicData) {
-      safeWriteFileSync(
-        path.join(homeDirectory, 'fetchy-storage.json'),
-        JSON.stringify(exportData.publicData, null, 2),
-        'utf-8'
-      );
+      // Write in split format
+      const state = exportData.publicData.state || exportData.publicData;
+
+      // Write meta.json
+      const meta = {
+        activeEnvironmentId: state.activeEnvironmentId ?? null,
+        sidebarWidth: state.sidebarWidth ?? 280,
+        sidebarCollapsed: state.sidebarCollapsed ?? false,
+        requestPanelWidth: state.requestPanelWidth ?? 50,
+        panelLayout: state.panelLayout ?? 'horizontal',
+      };
+      safeWriteFileSync(path.join(homeDirectory, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+
+      // Write collections
+      if (Array.isArray(state.collections)) {
+        const colDir = path.join(homeDirectory, 'collections');
+        if (!fs.existsSync(colDir)) fs.mkdirSync(colDir, { recursive: true });
+        for (const col of state.collections) {
+          safeWriteFileSync(path.join(colDir, `${col.id}.json`), JSON.stringify(col, null, 2), 'utf-8');
+        }
+      }
+
+      // Write environments
+      if (Array.isArray(state.environments)) {
+        const envDir = path.join(homeDirectory, 'environments');
+        if (!fs.existsSync(envDir)) fs.mkdirSync(envDir, { recursive: true });
+        for (const env of state.environments) {
+          safeWriteFileSync(path.join(envDir, `${env.id}.json`), JSON.stringify(env, null, 2), 'utf-8');
+        }
+      }
+
+      // Write history
+      if (Array.isArray(state.history)) {
+        safeWriteFileSync(path.join(homeDirectory, 'history.json'), JSON.stringify(state.history, null, 2), 'utf-8');
+      }
+
+      // Write openapi docs
+      if (Array.isArray(state.openApiDocuments)) {
+        const docDir = path.join(homeDirectory, 'openapi-docs');
+        if (!fs.existsSync(docDir)) fs.mkdirSync(docDir, { recursive: true });
+        for (const doc of state.openApiDocuments) {
+          safeWriteFileSync(path.join(docDir, `${doc.id}.json`), JSON.stringify(doc, null, 2), 'utf-8');
+        }
+      }
     }
 
     if (exportData.secretsData) {
@@ -1290,5 +1436,101 @@ ipcMain.handle('git-check-pull-available', async (event, { directory }) => {
     return { isRepo: true, hasPull: count > 0, count };
   } catch (error) {
     return { isRepo: false, hasPull: false, count: 0, error: error.message };
+  }
+});
+
+// ─── IPC: GIT MERGE CONFLICT RESOLUTION ────────────────────────────────────────
+
+// Get list of merge-conflicted files
+ipcMain.handle('git-merge-conflicts', async (event, { directory }) => {
+  try {
+    if (!directory) return { success: false, files: [], error: 'No directory specified' };
+    const result = await runGit(['diff', '--name-only', '--diff-filter=U'], directory);
+    if (!result.success) return { success: false, files: [], error: result.stderr };
+    const files = result.stdout.trim().split('\n').filter(l => l.trim());
+    return { success: true, files };
+  } catch (error) {
+    return { success: false, files: [], error: error.message };
+  }
+});
+
+// Check if we are in a merge state
+ipcMain.handle('git-is-merging', async (event, { directory }) => {
+  try {
+    if (!directory) return { merging: false };
+    const mergePath = path.join(directory, '.git', 'MERGE_HEAD');
+    return { merging: fs.existsSync(mergePath) };
+  } catch {
+    return { merging: false };
+  }
+});
+
+// Get the "ours" (local) or "theirs" (remote) version of a conflicted file
+ipcMain.handle('git-show-conflict-version', async (event, { directory, filepath, version }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    // stage 2 = ours (local), stage 3 = theirs (remote)
+    const stage = version === 'theirs' ? ':3:' : ':2:';
+    const result = await runGit(['show', `${stage}${filepath}`], directory);
+    if (!result.success) return { success: false, error: result.stderr, content: '' };
+    return { success: true, content: result.stdout };
+  } catch (error) {
+    return { success: false, error: error.message, content: '' };
+  }
+});
+
+// Resolve a single conflicted file by writing chosen content and staging it
+ipcMain.handle('git-resolve-conflict', async (event, { directory, filepath, content }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    const fullPath = path.join(directory, filepath);
+    // Ensure parent directory exists
+    const parentDir = path.dirname(fullPath);
+    if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
+    safeWriteFileSync(fullPath, content, 'utf-8');
+    const result = await runGit(['add', filepath], directory);
+    if (!result.success) return { success: false, error: result.stderr };
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Resolve ALL conflicts by choosing a strategy: 'ours' or 'theirs'
+ipcMain.handle('git-resolve-all-conflicts', async (event, { directory, strategy }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    // Get all conflicted files
+    const diffResult = await runGit(['diff', '--name-only', '--diff-filter=U'], directory);
+    if (!diffResult.success) return { success: false, error: diffResult.stderr };
+    const files = diffResult.stdout.trim().split('\n').filter(l => l.trim());
+    if (files.length === 0) return { success: true };
+
+    for (const filepath of files) {
+      const stage = strategy === 'theirs' ? ':3:' : ':2:';
+      const showResult = await runGit(['show', `${stage}${filepath}`], directory);
+      if (showResult.success) {
+        const fullPath = path.join(directory, filepath);
+        const parentDir = path.dirname(fullPath);
+        if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
+        safeWriteFileSync(fullPath, showResult.stdout, 'utf-8');
+      }
+      await runGit(['add', filepath], directory);
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Abort an in-progress merge
+ipcMain.handle('git-merge-abort', async (event, { directory }) => {
+  try {
+    if (!directory) return { success: false, error: 'No directory specified' };
+    const result = await runGit(['merge', '--abort'], directory);
+    if (!result.success) return { success: false, error: result.stderr };
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 });

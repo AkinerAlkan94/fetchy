@@ -18,6 +18,11 @@ import {
   Info,
   Link2,
   Unlink,
+  AlertTriangle,
+  XCircle,
+  GitMerge,
+  Eye,
+  CheckCircle,
 } from 'lucide-react';
 import type {
   GitStatusResult,
@@ -25,6 +30,7 @@ import type {
   Workspace,
 } from '../types';
 import { useAppStore } from '../store/appStore';
+import { invalidateWriteCache } from '../store/persistence';
 
 interface GitSettingsTabProps {
   workspace: Workspace | null;
@@ -47,6 +53,14 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate }: GitSett
   const [showCloneForm, setShowCloneForm] = useState(false);
   const [showRemoteForm, setShowRemoteForm] = useState(false);
   const [autoSync, setAutoSync] = useState(workspace?.gitAutoSync ?? false);
+  // Merge conflict state
+  const [isMerging, setIsMerging] = useState(false);
+  const [conflictFiles, setConflictFiles] = useState<string[]>([]);
+  const [selectedConflictFile, setSelectedConflictFile] = useState<string | null>(null);
+  const [oursContent, setOursContent] = useState<string>('');
+  const [theirsContent, setTheirsContent] = useState<string>('');
+  const [conflictViewLoading, setConflictViewLoading] = useState(false);
+  const [resolvedFiles, setResolvedFiles] = useState<Set<string>>(new Set());
   const opTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const api = window.electronAPI;
@@ -83,15 +97,29 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate }: GitSett
     if (!api || !homeDir) return;
     setIsRefreshing(true);
     try {
-      const [statusRes, logRes] = await Promise.all([
+      const [statusRes, logRes, mergingRes] = await Promise.all([
         api.gitStatus({ directory: homeDir }),
         api.gitLog({ directory: homeDir, count: 15 }),
+        api.gitIsMerging({ directory: homeDir }),
       ]);
       setStatus(statusRes);
       if (logRes.success && logRes.commits) setCommits(logRes.commits);
       else setCommits([]);
       if (statusRes.success && statusRes.remoteUrl) {
         setRemoteUrl(statusRes.remoteUrl);
+      }
+
+      // Check for merge conflicts
+      setIsMerging(mergingRes.merging);
+      if (mergingRes.merging) {
+        const conflictsRes = await api.gitMergeConflicts({ directory: homeDir });
+        if (conflictsRes.success) {
+          setConflictFiles(conflictsRes.files);
+        }
+      } else {
+        setConflictFiles([]);
+        setSelectedConflictFile(null);
+        setResolvedFiles(new Set());
       }
     } catch (e) {
       console.error('Git status refresh failed:', e);
@@ -149,11 +177,21 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate }: GitSett
     const result = await api.gitPull({ directory: homeDir });
     if (result.success) {
       showOp('success', result.output || 'Pull completed');
+      // Invalidate write cache so rehydrate reads fresh data from disk
+      invalidateWriteCache();
       refreshStatus();
       // Reload the app store so UI reflects changes from the pulled files
       await useAppStore.persist.rehydrate();
     } else {
-      showOp('error', result.error || 'Pull failed');
+      // Check if pull failed due to merge conflicts
+      const errorMsg = result.error || '';
+      if (errorMsg.includes('CONFLICT') || errorMsg.includes('conflict') || errorMsg.includes('Merge conflict')) {
+        showOp('error', 'Pull resulted in merge conflicts. Please resolve them below.');
+        // Refresh to pick up conflict state
+        await refreshStatus();
+      } else {
+        showOp('error', errorMsg || 'Pull failed');
+      }
     }
   }, [api, homeDir, showOp, refreshStatus]);
 
@@ -224,6 +262,111 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate }: GitSett
       refreshStatus();
     } else {
       showOp('error', result.error || 'Fetch failed');
+    }
+  }, [api, homeDir, showOp, refreshStatus]);
+
+  // View conflict details for a file
+  const handleViewConflict = useCallback(async (filepath: string) => {
+    if (!api || !homeDir) return;
+    setSelectedConflictFile(filepath);
+    setConflictViewLoading(true);
+    try {
+      const [oursRes, theirsRes] = await Promise.all([
+        api.gitShowConflictVersion({ directory: homeDir, filepath, version: 'ours' }),
+        api.gitShowConflictVersion({ directory: homeDir, filepath, version: 'theirs' }),
+      ]);
+      setOursContent(oursRes.success ? oursRes.content : oursRes.error || 'Unable to load');
+      setTheirsContent(theirsRes.success ? theirsRes.content : theirsRes.error || 'Unable to load');
+    } catch (e) {
+      setOursContent('Error loading content');
+      setTheirsContent('Error loading content');
+    }
+    setConflictViewLoading(false);
+  }, [api, homeDir]);
+
+  // Resolve a single conflict by choosing a version
+  const handleResolveFile = useCallback(async (filepath: string, strategy: 'ours' | 'theirs') => {
+    if (!api || !homeDir) return;
+    showOp('loading', `Resolving ${filepath} with ${strategy === 'ours' ? 'your' : 'their'} version...`);
+    try {
+      // Get the chosen version's content
+      const versionRes = await api.gitShowConflictVersion({ directory: homeDir, filepath, version: strategy });
+      if (!versionRes.success) {
+        showOp('error', versionRes.error || 'Failed to get version content');
+        return;
+      }
+      const resolveRes = await api.gitResolveConflict({ directory: homeDir, filepath, content: versionRes.content });
+      if (resolveRes.success) {
+        setResolvedFiles(prev => new Set([...prev, filepath]));
+        showOp('success', `Resolved ${filepath}`);
+        // If this was the viewed file, close the view
+        if (selectedConflictFile === filepath) {
+          setSelectedConflictFile(null);
+        }
+      } else {
+        showOp('error', resolveRes.error || 'Failed to resolve conflict');
+      }
+    } catch (e) {
+      showOp('error', 'Error resolving conflict');
+    }
+  }, [api, homeDir, showOp, selectedConflictFile]);
+
+  // Resolve all conflicts with a single strategy
+  const handleResolveAll = useCallback(async (strategy: 'ours' | 'theirs') => {
+    if (!api || !homeDir) return;
+    showOp('loading', `Resolving all conflicts with ${strategy === 'ours' ? 'your' : 'their'} version...`);
+    const result = await api.gitResolveAllConflicts({ directory: homeDir, strategy });
+    if (result.success) {
+      showOp('success', 'All conflicts resolved');
+      setConflictFiles([]);
+      setSelectedConflictFile(null);
+      setResolvedFiles(new Set());
+      refreshStatus();
+    } else {
+      showOp('error', result.error || 'Failed to resolve conflicts');
+    }
+  }, [api, homeDir, showOp, refreshStatus]);
+
+  // Complete the merge after resolving all conflicts
+  const handleCompleteMerge = useCallback(async () => {
+    if (!api || !homeDir) return;
+    const unresolvedCount = conflictFiles.filter(f => !resolvedFiles.has(f)).length;
+    if (unresolvedCount > 0) {
+      showOp('error', `${unresolvedCount} conflict(s) still unresolved`);
+      return;
+    }
+    showOp('loading', 'Completing merge...');
+    const result = await api.gitAddCommit({ directory: homeDir, message: 'Merge conflict resolution' });
+    if (result.success) {
+      showOp('success', 'Merge completed successfully');
+      setIsMerging(false);
+      setConflictFiles([]);
+      setSelectedConflictFile(null);
+      setResolvedFiles(new Set());
+      invalidateWriteCache();
+      refreshStatus();
+      await useAppStore.persist.rehydrate();
+    } else {
+      showOp('error', result.error || 'Failed to complete merge');
+    }
+  }, [api, homeDir, conflictFiles, resolvedFiles, showOp, refreshStatus]);
+
+  // Abort the merge
+  const handleAbortMerge = useCallback(async () => {
+    if (!api || !homeDir) return;
+    showOp('loading', 'Aborting merge...');
+    const result = await api.gitMergeAbort({ directory: homeDir });
+    if (result.success) {
+      showOp('success', 'Merge aborted');
+      setIsMerging(false);
+      setConflictFiles([]);
+      setSelectedConflictFile(null);
+      setResolvedFiles(new Set());
+      invalidateWriteCache();
+      refreshStatus();
+      await useAppStore.persist.rehydrate();
+    } else {
+      showOp('error', result.error || 'Failed to abort merge');
     }
   }, [api, homeDir, showOp, refreshStatus]);
 
@@ -428,6 +571,152 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate }: GitSett
               )}
             </div>
           ) : null}
+
+          {/* ── Merge Conflict Resolution Panel ── */}
+          {isMerging && conflictFiles.length > 0 && (
+            <div className='space-y-3 p-4 bg-red-500/5 border border-red-500/30 rounded-lg'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <AlertTriangle size={16} className='text-red-400' />
+                  <span className='text-sm font-medium text-red-300'>Merge Conflicts</span>
+                  <span className='text-xs px-1.5 py-0.5 bg-red-500/20 text-red-300 rounded-full'>
+                    {conflictFiles.filter(f => !resolvedFiles.has(f)).length} unresolved
+                  </span>
+                </div>
+                <div className='flex gap-1.5'>
+                  <button
+                    onClick={() => handleResolveAll('ours')}
+                    disabled={opStatus === 'loading'}
+                    className='px-2 py-1 text-[10px] bg-blue-600/80 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50'
+                    title='Accept your local version for all conflicts'
+                  >
+                    Accept All Mine
+                  </button>
+                  <button
+                    onClick={() => handleResolveAll('theirs')}
+                    disabled={opStatus === 'loading'}
+                    className='px-2 py-1 text-[10px] bg-orange-600/80 text-white rounded hover:bg-orange-700 transition-colors disabled:opacity-50'
+                    title='Accept remote version for all conflicts'
+                  >
+                    Accept All Theirs
+                  </button>
+                </div>
+              </div>
+
+              {/* Conflict file list */}
+              <div className='max-h-40 overflow-y-auto space-y-1'>
+                {conflictFiles.map((file) => {
+                  const isResolved = resolvedFiles.has(file);
+                  const isSelected = selectedConflictFile === file;
+                  return (
+                    <div
+                      key={file}
+                      className={`flex items-center justify-between p-2 rounded border transition-colors ${
+                        isResolved
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : isSelected
+                          ? 'bg-[#1a1a2e] border-purple-500/40'
+                          : 'bg-[#0f0f1a] border-[#2d2d44] hover:border-[#3d3d54]'
+                      }`}
+                    >
+                      <div className='flex items-center gap-2 min-w-0'>
+                        {isResolved ? (
+                          <CheckCircle size={12} className='text-green-400 shrink-0' />
+                        ) : (
+                          <XCircle size={12} className='text-red-400 shrink-0' />
+                        )}
+                        <span className='text-xs font-mono text-gray-300 truncate'>{file}</span>
+                      </div>
+                      {!isResolved && (
+                        <div className='flex gap-1 shrink-0 ml-2'>
+                          <button
+                            onClick={() => handleViewConflict(file)}
+                            className='p-1 text-gray-400 hover:text-white hover:bg-[#2d2d44] rounded transition-colors'
+                            title='View conflict details'
+                          >
+                            <Eye size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleResolveFile(file, 'ours')}
+                            disabled={opStatus === 'loading'}
+                            className='px-1.5 py-0.5 text-[10px] bg-blue-600/60 text-blue-200 rounded hover:bg-blue-600 transition-colors disabled:opacity-50'
+                          >
+                            Mine
+                          </button>
+                          <button
+                            onClick={() => handleResolveFile(file, 'theirs')}
+                            disabled={opStatus === 'loading'}
+                            className='px-1.5 py-0.5 text-[10px] bg-orange-600/60 text-orange-200 rounded hover:bg-orange-600 transition-colors disabled:opacity-50'
+                          >
+                            Theirs
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Conflict detail view */}
+              {selectedConflictFile && (
+                <div className='border border-[#2d2d44] rounded overflow-hidden'>
+                  <div className='flex items-center justify-between p-2 bg-[#1a1a2e] border-b border-[#2d2d44]'>
+                    <span className='text-xs font-mono text-gray-400'>{selectedConflictFile}</span>
+                    <button
+                      onClick={() => setSelectedConflictFile(null)}
+                      className='text-gray-500 hover:text-white transition-colors'
+                    >
+                      <XCircle size={12} />
+                    </button>
+                  </div>
+                  {conflictViewLoading ? (
+                    <div className='flex items-center justify-center py-8'>
+                      <Loader2 size={16} className='animate-spin text-purple-400' />
+                    </div>
+                  ) : (
+                    <div className='grid grid-cols-2 divide-x divide-[#2d2d44]'>
+                      <div>
+                        <div className='px-2 py-1 bg-blue-500/10 border-b border-[#2d2d44]'>
+                          <span className='text-[10px] font-medium text-blue-300'>YOURS (Local)</span>
+                        </div>
+                        <pre className='p-2 text-[10px] font-mono text-gray-300 max-h-48 overflow-auto whitespace-pre-wrap break-all'>
+                          {oursContent}
+                        </pre>
+                      </div>
+                      <div>
+                        <div className='px-2 py-1 bg-orange-500/10 border-b border-[#2d2d44]'>
+                          <span className='text-[10px] font-medium text-orange-300'>THEIRS (Remote)</span>
+                        </div>
+                        <pre className='p-2 text-[10px] font-mono text-gray-300 max-h-48 overflow-auto whitespace-pre-wrap break-all'>
+                          {theirsContent}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Complete / Abort merge */}
+              <div className='flex gap-2 pt-2 border-t border-red-500/20'>
+                <button
+                  onClick={handleCompleteMerge}
+                  disabled={opStatus === 'loading' || conflictFiles.some(f => !resolvedFiles.has(f))}
+                  className='flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50'
+                >
+                  <GitMerge size={12} />
+                  Complete Merge
+                </button>
+                <button
+                  onClick={handleAbortMerge}
+                  disabled={opStatus === 'loading'}
+                  className='flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-600/80 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50'
+                >
+                  <XCircle size={12} />
+                  Abort Merge
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Remote URL */}
           <div className='p-3 bg-[#0f0f1a] rounded border border-[#2d2d44]'>

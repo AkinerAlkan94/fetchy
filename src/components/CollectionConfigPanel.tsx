@@ -380,7 +380,7 @@ export default function CollectionConfigPanel({ collectionId }: CollectionConfig
             { id: 'variables' as const, label: 'Variables', count: localVariables.filter(v => v.enabled).length },
             { id: 'auth' as const, label: 'Auth', badge: localAuth.type !== 'none' ? localAuth.type : undefined },
             { id: 'preScript' as const, label: 'Pre-Script', hasDot: !!localPreScript },
-            { id: 'script' as const, label: 'Tests', hasDot: !!localScript },
+            { id: 'script' as const, label: 'Post-Script', hasDot: !!localScript },
           ]).map((section) => (
             <button
               key={section.id}

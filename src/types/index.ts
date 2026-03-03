@@ -415,6 +415,22 @@ export interface GitRemoteResult {
   error?: string;
 }
 
+export interface GitMergeConflictsResult {
+  success: boolean;
+  files: string[];
+  error?: string;
+}
+
+export interface GitConflictVersionResult {
+  success: boolean;
+  content: string;
+  error?: string;
+}
+
+export interface GitIsMergingResult {
+  merging: boolean;
+}
+
 // Electron API type definition
 export interface ElectronAPI {
   httpRequest: (data: {
@@ -438,6 +454,8 @@ export interface ElectronAPI {
   getDataPath: () => Promise<string>;
   readData: (filename: string) => Promise<string | null>;
   writeData: (data: { filename: string; content: string }) => Promise<boolean>;
+  listDataDir: (subDir: string) => Promise<string[]>;
+  deleteDataFile: (filename: string) => Promise<boolean>;
   // Secrets
   readSecrets: () => Promise<string | null>;
   writeSecrets: (data: { content: string }) => Promise<boolean>;
@@ -476,6 +494,17 @@ export interface ElectronAPI {
   gitRemoteGet: (data: { directory: string }) => Promise<GitRemoteResult>;
   gitRemoteSet: (data: { directory: string; url: string }) => Promise<GitOperationResult>;
   gitFetch: (data: { directory: string }) => Promise<GitOperationResult>;
+  gitMergeConflicts: (data: { directory: string }) => Promise<GitMergeConflictsResult>;
+  gitIsMerging: (data: { directory: string }) => Promise<GitIsMergingResult>;
+  gitShowConflictVersion: (data: { directory: string; filepath: string; version: 'ours' | 'theirs' }) => Promise<GitConflictVersionResult>;
+  gitResolveConflict: (data: { directory: string; filepath: string; content: string }) => Promise<GitOperationResult>;
+  gitResolveAllConflicts: (data: { directory: string; strategy: 'ours' | 'theirs' }) => Promise<GitOperationResult>;
+  gitMergeAbort: (data: { directory: string }) => Promise<GitOperationResult>;
+  // Storage file change events
+  onStorageFileChanged: (callback: () => void) => (() => void);
+  offStorageFileChanged?: (listener: () => void) => void;
+  // Pull availability check
+  gitCheckPullAvailable: (data: { directory: string }) => Promise<{ available: boolean; behind?: number; isRepo?: boolean; hasPull?: boolean; count?: number }>;
 }
 
 // Extend Window interface globally
