@@ -108,8 +108,9 @@ function requireSafeRelativePath(filepath, name) {
   // Normalize separators
   const normalized = filepath.replace(/\\/g, '/');
 
-  // Block absolute paths
-  if (path.isAbsolute(filepath) || normalized.startsWith('/')) {
+  // Block absolute paths — check both Unix-style and Windows drive-letter style
+  // (path.isAbsolute() is platform-aware and misses Windows paths on Linux CI)
+  if (path.isAbsolute(filepath) || normalized.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(filepath)) {
     throw new Error(`${name} must be a relative path`);
   }
 
