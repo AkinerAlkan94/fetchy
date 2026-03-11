@@ -1,7 +1,7 @@
 ﻿import { create } from 'zustand';
 import { Workspace, WorkspacesConfig, WorkspaceExport } from '../types';
 import { rehydrateWorkspace } from './appStore';
-import { registerGitSyncProvider } from './persistence';
+import { registerGitSyncProvider, registerActiveWorkspaceIdProvider } from './persistence';
 
 interface WorkspacesStore {
   workspaces: Workspace[];
@@ -256,4 +256,10 @@ registerGitSyncProvider(() => {
   const active = state.workspaces.find((w) => w.id === state.activeWorkspaceId);
   if (!active?.gitAutoSync || !active.homeDirectory) return null;
   return { gitAutoSync: active.gitAutoSync, homeDirectory: active.homeDirectory };
+});
+
+// Register the active workspace ID provider for browser-mode storage isolation.
+// Gives persistence.ts a workspace-scoped localStorage key for each workspace.
+registerActiveWorkspaceIdProvider(() => {
+  return useWorkspacesStore.getState().activeWorkspaceId;
 });

@@ -6,7 +6,7 @@
  *          git-merge-conflicts, git-is-merging, git-show-conflict-version,
  *          git-resolve-conflict, git-resolve-all-conflicts,
  *          git-read-file-content, git-show-base-version,
- *          git-write-resolved-content, git-merge-abort
+ *          git-write-resolved-content, git-merge-abort, git-diff-file
  *
  * @module electron/ipc/gitHandler
  */
@@ -807,6 +807,25 @@ function register(ipcMain, deps) {
       return { success: true, output: result.stdout.trim() };
     } catch (error) {
       return { success: false, error: error.message };
+    }
+  });
+
+  // ─── Diff operations ────────────────────────────────────────────────────
+
+  ipcMain.handle('git-diff-file', async (event, { directory, filepath, staged }) => {
+    try {
+      requireDirectoryPath(directory, 'directory');
+      requireSafeRelativePath(filepath, 'filepath');
+      if (!isGitRepo(directory)) return { success: false, diff: '', error: 'Not a git repository' };
+
+      const args = staged
+        ? ['diff', '--cached', '--', filepath]
+        : ['diff', '--', filepath];
+      const result = await runGit(args, directory);
+      if (!result.success) return { success: false, diff: '', error: result.stderr };
+      return { success: true, diff: result.stdout };
+    } catch (error) {
+      return { success: false, diff: '', error: error.message };
     }
   });
 }

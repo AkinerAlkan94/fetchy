@@ -81,6 +81,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gitStash: (data) => ipcRenderer.invoke('git-stash', data),
   gitStashPop: (data) => ipcRenderer.invoke('git-stash-pop', data),
 
+  // Git diff operations
+  gitDiffFile: (data) => ipcRenderer.invoke('git-diff-file', data),
+
   // Storage file change events (fired when file changes externally, e.g. after git pull)
   onStorageFileChanged: (callback) => {
     const listener = (_, data) => callback(data);

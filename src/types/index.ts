@@ -570,6 +570,8 @@ export interface ElectronAPI {
   // Git stash operations
   gitStash: (data: { directory: string }) => Promise<GitOperationResult>;
   gitStashPop: (data: { directory: string }) => Promise<GitOperationResult>;
+  // Git diff operations
+  gitDiffFile: (data: { directory: string; filepath: string; staged?: boolean }) => Promise<{ success: boolean; diff: string; error?: string }>;
   // Storage file change events
   onStorageFileChanged: (callback: () => void) => (() => void);
   offStorageFileChanged?: (listener: () => void) => void;

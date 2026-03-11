@@ -33,6 +33,8 @@ import {
   FileEdit,
   FileMinus2,
   HelpCircle,
+  FileCode,
+  X,
 } from 'lucide-react';
 import type {
   GitStatusResult,
@@ -149,6 +151,10 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
   const [expandedStaged, setExpandedStaged] = useState(true);
   const [expandedUnstaged, setExpandedUnstaged] = useState(true);
   const [expandedCommits, setExpandedCommits] = useState(false);
+  // File diff viewer state
+  const [diffFile, setDiffFile] = useState<{ path: string; staged: boolean; isConflict?: boolean } | null>(null);
+  const [diffContent, setDiffContent] = useState('');
+  const [diffLoading, setDiffLoading] = useState(false);
   const opTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const branchDropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -516,42 +522,38 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
     }
   }, [api, homeDir, showOp, refreshStatus]);
 
-  // Resolve a single conflict by choosing a version
-  const handleResolveFile = useCallback(async (filepath: string, strategy: 'ours' | 'theirs') => {
+  // View file diff (or conflict content)
+  const handleViewFileDiff = useCallback(async (filepath: string, staged: boolean, isConflict?: boolean) => {
     if (!api || !homeDir) return;
-    showOp('loading', `Resolving ${filepath} with ${strategy === 'ours' ? 'your' : 'their'} version...`);
+    // Toggle off if same file clicked again
+    if (diffFile?.path === filepath && diffFile.staged === staged && diffFile.isConflict === !!isConflict) {
+      setDiffFile(null);
+      setDiffContent('');
+      return;
+    }
+    setDiffFile({ path: filepath, staged, isConflict: !!isConflict });
+    setDiffLoading(true);
+    setDiffContent('');
     try {
-      const versionRes = await api.gitShowConflictVersion({ directory: homeDir, filepath, version: strategy });
-      if (!versionRes.success) {
-        showOp('error', versionRes.error || 'Failed to get version content');
-        return;
-      }
-      const resolveRes = await api.gitResolveConflict({ directory: homeDir, filepath, content: versionRes.content });
-      if (resolveRes.success) {
-        setResolvedFiles(prev => new Set([...prev, filepath]));
-        showOp('success', `Resolved ${filepath}`);
+      if (isConflict) {
+        // For conflict files, read the working tree content (with conflict markers)
+        const res = await api.gitReadFileContent({ directory: homeDir, filepath });
+        setDiffContent(res.success ? res.content : res.error || 'Failed to read file');
       } else {
-        showOp('error', resolveRes.error || 'Failed to resolve conflict');
+        const res = await api.gitDiffFile({ directory: homeDir, filepath, staged });
+        if (res.success) {
+          setDiffContent(res.diff || '(no changes)');
+        } else {
+          // Fallback: for untracked files, read the whole file content
+          const fileRes = await api.gitReadFileContent({ directory: homeDir, filepath });
+          setDiffContent(fileRes.success ? fileRes.content : fileRes.error || 'Failed to read diff');
+        }
       }
-    } catch (e) {
-      showOp('error', 'Error resolving conflict');
+    } catch {
+      setDiffContent('Failed to load diff');
     }
-  }, [api, homeDir, showOp]);
-
-  // Resolve all conflicts with a single strategy
-  const handleResolveAll = useCallback(async (strategy: 'ours' | 'theirs') => {
-    if (!api || !homeDir) return;
-    showOp('loading', `Resolving all conflicts with ${strategy === 'ours' ? 'your' : 'their'} version...`);
-    const result = await api.gitResolveAllConflicts({ directory: homeDir, strategy });
-    if (result.success) {
-      showOp('success', 'All conflicts resolved');
-      setConflictFiles([]);
-      setResolvedFiles(new Set());
-      refreshStatus();
-    } else {
-      showOp('error', result.error || 'Failed to resolve conflicts');
-    }
-  }, [api, homeDir, showOp, refreshStatus]);
+    setDiffLoading(false);
+  }, [api, homeDir, diffFile]);
 
   // Complete the merge after resolving all conflicts
   const handleCompleteMerge = useCallback(async () => {
@@ -796,27 +798,27 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
           <div className='flex items-center gap-1 p-1.5 bg-[#0f0f1a] rounded border border-[#2d2d44]'>
             <button
               onClick={handleFetch}
-              disabled={opStatus === 'loading' || !hasRemote}
+              disabled={opStatus === 'loading' || !hasRemote || isMerging}
               className='flex flex-col items-center gap-0.5 px-2.5 py-1.5 text-[10px] text-gray-300 rounded hover:bg-[#2d2d44] transition-colors disabled:opacity-40 min-w-[48px]'
-              title={!hasRemote ? 'Set a remote first' : 'Fetch latest from remote'}
+              title={isMerging ? 'Resolve merge conflicts first' : !hasRemote ? 'Set a remote first' : 'Fetch latest from remote'}
             >
               <RefreshCw size={14} />
               <span>Fetch</span>
             </button>
             <button
               onClick={handlePull}
-              disabled={opStatus === 'loading' || !hasRemote}
+              disabled={opStatus === 'loading' || !hasRemote || isMerging}
               className='flex flex-col items-center gap-0.5 px-2.5 py-1.5 text-[10px] text-gray-300 rounded hover:bg-[#2d2d44] transition-colors disabled:opacity-40 min-w-[48px]'
-              title={!hasRemote ? 'Set a remote first' : 'Pull changes from remote'}
+              title={isMerging ? 'Resolve merge conflicts first' : !hasRemote ? 'Set a remote first' : 'Pull changes from remote'}
             >
               <Download size={14} />
               <span>Pull</span>
             </button>
             <button
               onClick={handlePush}
-              disabled={opStatus === 'loading' || !hasRemote}
+              disabled={opStatus === 'loading' || !hasRemote || isMerging}
               className='flex flex-col items-center gap-0.5 px-2.5 py-1.5 text-[10px] text-gray-300 rounded hover:bg-[#2d2d44] transition-colors disabled:opacity-40 min-w-[48px]'
-              title={!hasRemote ? 'Set a remote first' : 'Push commits to remote'}
+              title={isMerging ? 'Resolve merge conflicts first' : !hasRemote ? 'Set a remote first' : 'Push commits to remote'}
             >
               <Upload size={14} />
               <span>Push</span>
@@ -828,8 +830,9 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
             <div className='relative' ref={branchDropdownRef}>
               <button
                 onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-                className='flex flex-col items-center gap-0.5 px-2.5 py-1.5 text-[10px] text-gray-300 rounded hover:bg-[#2d2d44] transition-colors min-w-[48px]'
-                title='Switch branch'
+                disabled={isMerging}
+                className='flex flex-col items-center gap-0.5 px-2.5 py-1.5 text-[10px] text-gray-300 rounded hover:bg-[#2d2d44] transition-colors disabled:opacity-40 min-w-[48px]'
+                title={isMerging ? 'Resolve merge conflicts first' : 'Switch branch'}
               >
                 <GitBranch size={14} />
                 <span>Branch</span>
@@ -924,18 +927,18 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
 
             <button
               onClick={handleStash}
-              disabled={opStatus === 'loading' || !status?.hasChanges}
+              disabled={opStatus === 'loading' || !status?.hasChanges || isMerging}
               className='flex flex-col items-center gap-0.5 px-2.5 py-1.5 text-[10px] text-gray-300 rounded hover:bg-[#2d2d44] transition-colors disabled:opacity-40 min-w-[48px]'
-              title='Stash changes'
+              title={isMerging ? 'Resolve merge conflicts first' : 'Stash changes'}
             >
               <Archive size={14} />
               <span>Stash</span>
             </button>
             <button
               onClick={handleStashPop}
-              disabled={opStatus === 'loading'}
+              disabled={opStatus === 'loading' || isMerging}
               className='flex flex-col items-center gap-0.5 px-2.5 py-1.5 text-[10px] text-gray-300 rounded hover:bg-[#2d2d44] transition-colors disabled:opacity-40 min-w-[48px]'
-              title='Pop stash'
+              title={isMerging ? 'Resolve merge conflicts first' : 'Pop stash'}
             >
               <ArchiveRestore size={14} />
               <span>Pop</span>
@@ -1019,71 +1022,43 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
           {/* ── Merge Conflict Resolution Panel ── */}
           {isMerging && conflictFiles.length > 0 && (
             <div className='space-y-3 p-3 bg-red-500/5 border border-red-500/30 rounded-lg'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <AlertTriangle size={14} className='text-red-400' />
-                  <span className='text-xs font-medium text-red-300'>Merge Conflicts</span>
-                  <span className='text-[10px] px-1.5 py-0.5 bg-red-500/20 text-red-300 rounded-full'>
-                    {conflictFiles.filter(f => !resolvedFiles.has(f)).length} unresolved
-                  </span>
-                </div>
-                <div className='flex gap-1'>
-                  <button
-                    onClick={() => handleResolveAll('ours')}
-                    disabled={opStatus === 'loading'}
-                    className='px-2 py-0.5 text-[10px] bg-blue-600/80 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50'
-                  >
-                    All Mine
-                  </button>
-                  <button
-                    onClick={() => handleResolveAll('theirs')}
-                    disabled={opStatus === 'loading'}
-                    className='px-2 py-0.5 text-[10px] bg-orange-600/80 text-white rounded hover:bg-orange-700 transition-colors disabled:opacity-50'
-                  >
-                    All Theirs
-                  </button>
-                </div>
+              <div className='flex items-center gap-2'>
+                <AlertTriangle size={14} className='text-red-400 shrink-0' />
+                <span className='text-xs font-medium text-red-300'>Merge Conflicts</span>
+                <span className='text-[10px] px-1.5 py-0.5 bg-red-500/20 text-red-300 rounded-full'>
+                  {conflictFiles.filter(f => !resolvedFiles.has(f)).length} unresolved
+                </span>
               </div>
 
-              <div className='max-h-32 overflow-y-auto space-y-1'>
+              <p className='text-[11px] text-gray-400'>
+                A merge is in progress. Review the conflicted files below and use the 3-Way Merge Editor to resolve them.
+                Pull, push, and commit are disabled until the merge is resolved or aborted.
+              </p>
+
+              <div className='max-h-44 overflow-y-auto space-y-1'>
                 {conflictFiles.map((file) => {
                   const isResolved = resolvedFiles.has(file);
+                  const isViewing = diffFile?.path === file && diffFile.isConflict;
                   return (
-                    <div
+                    <button
                       key={file}
-                      className={`flex items-center justify-between p-1.5 rounded border transition-colors ${
+                      onClick={() => handleViewFileDiff(file, false, true)}
+                      className={`flex items-center gap-1.5 w-full p-1.5 rounded border transition-colors text-left ${
                         isResolved
                           ? 'bg-green-500/10 border-green-500/30'
-                          : 'bg-[#0f0f1a] border-[#2d2d44]'
+                          : isViewing
+                          ? 'bg-purple-500/10 border-purple-500/30'
+                          : 'bg-[#0f0f1a] border-[#2d2d44] hover:bg-[#1a1a2e]'
                       }`}
                     >
-                      <div className='flex items-center gap-1.5 min-w-0'>
-                        {isResolved ? (
-                          <CheckCircle size={11} className='text-green-400 shrink-0' />
-                        ) : (
-                          <XCircle size={11} className='text-red-400 shrink-0' />
-                        )}
-                        <span className='text-[10px] font-mono text-gray-300 truncate'>{file}</span>
-                      </div>
-                      {!isResolved && (
-                        <div className='flex gap-1 shrink-0 ml-2'>
-                          <button
-                            onClick={() => handleResolveFile(file, 'ours')}
-                            disabled={opStatus === 'loading'}
-                            className='px-1.5 py-0.5 text-[9px] bg-blue-600/60 text-blue-200 rounded hover:bg-blue-600 disabled:opacity-50'
-                          >
-                            Mine
-                          </button>
-                          <button
-                            onClick={() => handleResolveFile(file, 'theirs')}
-                            disabled={opStatus === 'loading'}
-                            className='px-1.5 py-0.5 text-[9px] bg-orange-600/60 text-orange-200 rounded hover:bg-orange-600 disabled:opacity-50'
-                          >
-                            Theirs
-                          </button>
-                        </div>
+                      {isResolved ? (
+                        <CheckCircle size={11} className='text-green-400 shrink-0' />
+                      ) : (
+                        <XCircle size={11} className='text-red-400 shrink-0' />
                       )}
-                    </div>
+                      <span className='text-[10px] font-mono text-gray-300 truncate flex-1'>{file}</span>
+                      <Eye size={10} className={`shrink-0 ${isViewing ? 'text-purple-400' : 'text-gray-600'}`} />
+                    </button>
                   );
                 })}
               </div>
@@ -1092,10 +1067,10 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
                 <button
                   onClick={onOpenConflictResolver}
                   disabled={opStatus === 'loading'}
-                  className='flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors disabled:opacity-50 w-full justify-center'
+                  className='flex items-center gap-1.5 px-3 py-2 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors disabled:opacity-50 w-full justify-center font-medium'
                 >
-                  <Eye size={13} />
-                  Open 3-Way Merge Editor
+                  <GitMerge size={13} />
+                  Open 3-Way Merge Editor to Resolve
                 </button>
               )}
 
@@ -1149,32 +1124,38 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
                 {unstaged.length === 0 ? (
                   <p className='text-[10px] text-gray-600 text-center py-3'>No unstaged changes</p>
                 ) : (
-                  unstaged.map((file) => (
-                    <div
-                      key={file.path}
-                      className='flex items-center gap-2 px-3 py-1 hover:bg-[#1a1a2e] transition-colors group'
-                    >
-                      {statusIcon(file.status)}
-                      <span className='text-[11px] font-mono text-gray-300 truncate flex-1'>{file.path}</span>
-                      {statusBadge(file.status)}
-                      <div className='flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0'>
-                        <button
-                          onClick={() => handleStageFiles([file.path])}
-                          className='p-0.5 text-green-400 hover:bg-green-500/20 rounded transition-colors'
-                          title='Stage this file'
-                        >
-                          <Plus size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDiscardFiles([file.path])}
-                          className='p-0.5 text-red-400 hover:bg-red-500/20 rounded transition-colors'
-                          title='Discard changes'
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                  unstaged.map((file) => {
+                    const isViewing = diffFile?.path === file.path && !diffFile.staged && !diffFile.isConflict;
+                    return (
+                      <div
+                        key={file.path}
+                        className={`flex items-center gap-2 px-3 py-1 transition-colors group cursor-pointer ${
+                          isViewing ? 'bg-purple-500/10' : 'hover:bg-[#1a1a2e]'
+                        }`}
+                        onClick={() => handleViewFileDiff(file.path, false)}
+                      >
+                        {statusIcon(file.status)}
+                        <span className='text-[11px] font-mono text-gray-300 truncate flex-1'>{file.path}</span>
+                        {statusBadge(file.status)}
+                        <div className='flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0'>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageFiles([file.path]); }}
+                            className='p-0.5 text-green-400 hover:bg-green-500/20 rounded transition-colors'
+                            title='Stage this file'
+                          >
+                            <Plus size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDiscardFiles([file.path]); }}
+                            className='p-0.5 text-red-400 hover:bg-red-500/20 rounded transition-colors'
+                            title='Discard changes'
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -1209,38 +1190,107 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
                 {staged.length === 0 ? (
                   <p className='text-[10px] text-gray-600 text-center py-3'>No staged changes</p>
                 ) : (
-                  staged.map((file) => (
-                    <div
-                      key={file.path}
-                      className='flex items-center gap-2 px-3 py-1 hover:bg-[#1a1a2e] transition-colors group'
-                    >
-                      {statusIcon(file.status)}
-                      <span className='text-[11px] font-mono text-gray-300 truncate flex-1'>{file.path}</span>
-                      {statusBadge(file.status)}
-                      <div className='flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0'>
-                        <button
-                          onClick={() => handleUnstageFiles([file.path])}
-                          className='p-0.5 text-yellow-400 hover:bg-yellow-500/20 rounded transition-colors'
-                          title='Unstage this file'
-                        >
-                          <Minus size={12} />
-                        </button>
+                  staged.map((file) => {
+                    const isViewing = diffFile?.path === file.path && diffFile.staged;
+                    return (
+                      <div
+                        key={file.path}
+                        className={`flex items-center gap-2 px-3 py-1 transition-colors group cursor-pointer ${
+                          isViewing ? 'bg-purple-500/10' : 'hover:bg-[#1a1a2e]'
+                        }`}
+                        onClick={() => handleViewFileDiff(file.path, true)}
+                      >
+                        {statusIcon(file.status)}
+                        <span className='text-[11px] font-mono text-gray-300 truncate flex-1'>{file.path}</span>
+                        {statusBadge(file.status)}
+                        <div className='flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0'>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleUnstageFiles([file.path]); }}
+                            className='p-0.5 text-yellow-400 hover:bg-yellow-500/20 rounded transition-colors'
+                            title='Unstage this file'
+                          >
+                            <Minus size={12} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
           </div>
 
+          {/* ── File Diff Viewer ── */}
+          {diffFile && (
+            <div className='bg-[#0f0f1a] rounded border border-[#2d2d44] overflow-hidden'>
+              <div className='flex items-center justify-between px-3 py-2 border-b border-[#2d2d44]'>
+                <div className='flex items-center gap-2 min-w-0'>
+                  <FileCode size={12} className='text-purple-400 shrink-0' />
+                  <span className='text-[11px] font-mono text-gray-300 truncate'>{diffFile.path}</span>
+                  {diffFile.isConflict && (
+                    <span className='text-[9px] px-1.5 py-0.5 bg-red-500/20 text-red-300 rounded shrink-0'>conflict</span>
+                  )}
+                  {!diffFile.isConflict && (
+                    <span className='text-[9px] px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded shrink-0'>
+                      {diffFile.staged ? 'staged' : 'unstaged'}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setDiffFile(null); setDiffContent(''); }}
+                  className='p-0.5 text-gray-500 hover:text-white hover:bg-[#2d2d44] rounded transition-colors'
+                  title='Close diff'
+                >
+                  <X size={12} />
+                </button>
+              </div>
+              <div className='max-h-64 overflow-auto'>
+                {diffLoading ? (
+                  <div className='flex items-center justify-center py-6'>
+                    <Loader2 size={14} className='animate-spin text-purple-400' />
+                    <span className='ml-2 text-xs text-gray-400'>Loading...</span>
+                  </div>
+                ) : (
+                  <pre className='text-[10px] font-mono p-3 leading-relaxed whitespace-pre-wrap break-all'>
+                    {diffContent.split('\n').map((line, i) => {
+                      let lineClass = 'text-gray-400';
+                      if (diffFile.isConflict) {
+                        if (line.startsWith('<<<<<<<')) lineClass = 'text-blue-400 font-bold bg-blue-500/10';
+                        else if (line.startsWith('=======')) lineClass = 'text-yellow-400 font-bold bg-yellow-500/10';
+                        else if (line.startsWith('>>>>>>>')) lineClass = 'text-orange-400 font-bold bg-orange-500/10';
+                      } else {
+                        if (line.startsWith('+') && !line.startsWith('+++')) lineClass = 'text-green-400 bg-green-500/10';
+                        else if (line.startsWith('-') && !line.startsWith('---')) lineClass = 'text-red-400 bg-red-500/10';
+                        else if (line.startsWith('@@')) lineClass = 'text-purple-400';
+                        else if (line.startsWith('diff') || line.startsWith('index')) lineClass = 'text-gray-600';
+                      }
+                      return (
+                        <div key={i} className={lineClass}>
+                          {line}
+                        </div>
+                      );
+                    })}
+                  </pre>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Commit Area ── */}
-          <div className='bg-[#0f0f1a] rounded border border-[#2d2d44] p-3 space-y-2'>
+          <div className={`bg-[#0f0f1a] rounded border p-3 space-y-2 ${isMerging ? 'border-red-500/20 opacity-60' : 'border-[#2d2d44]'}`}>
+            {isMerging && (
+              <div className='flex items-center gap-1.5 text-[10px] text-red-300 pb-1'>
+                <AlertTriangle size={10} className='shrink-0' />
+                <span>Commit disabled during merge — resolve or abort first</span>
+              </div>
+            )}
             <textarea
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder='Commit message...'
               rows={2}
-              className='w-full px-2.5 py-1.5 bg-[#1a1a2e] border border-[#2d2d44] rounded text-white text-xs resize-none focus:outline-none focus:border-purple-500'
+              disabled={isMerging}
+              className='w-full px-2.5 py-1.5 bg-[#1a1a2e] border border-[#2d2d44] rounded text-white text-xs resize-none focus:outline-none focus:border-purple-500 disabled:opacity-50'
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                   if (staged.length > 0) handleCommitStaged();
@@ -1252,9 +1302,9 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
               {/* Commit staged only */}
               <button
                 onClick={handleCommitStaged}
-                disabled={opStatus === 'loading' || staged.length === 0}
+                disabled={opStatus === 'loading' || staged.length === 0 || isMerging}
                 className='flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors disabled:opacity-50 flex-1 justify-center'
-                title='Commit staged files only'
+                title={isMerging ? 'Resolve merge conflicts first' : 'Commit staged files only'}
               >
                 <GitCommitHorizontal size={12} />
                 Commit ({staged.length})
@@ -1262,25 +1312,25 @@ export default function GitSettingsTab({ workspace, onWorkspaceUpdate, onOpenCon
               {/* Commit all (stage all + commit) */}
               <button
                 onClick={handleCommit}
-                disabled={opStatus === 'loading' || !status?.hasChanges}
+                disabled={opStatus === 'loading' || !status?.hasChanges || isMerging}
                 className='flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#1a1a2e] text-gray-300 border border-[#2d2d44] rounded hover:bg-[#2d2d44] transition-colors disabled:opacity-50'
-                title='Stage all and commit'
+                title={isMerging ? 'Resolve merge conflicts first' : 'Stage all and commit'}
               >
                 Commit All
               </button>
               {hasRemote && (
                 <button
                   onClick={handleCommitAndPush}
-                  disabled={opStatus === 'loading' || !status?.hasChanges}
+                  disabled={opStatus === 'loading' || !status?.hasChanges || isMerging}
                   className='flex items-center gap-1 px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50'
-                  title='Stage all, commit and push to remote'
+                  title={isMerging ? 'Resolve merge conflicts first' : 'Stage all, commit and push to remote'}
                 >
                   <GitPullRequest size={12} />
                   Sync
                 </button>
               )}
             </div>
-            <p className='text-[10px] text-gray-600'>Ctrl+Enter to commit staged</p>
+            {!isMerging && <p className='text-[10px] text-gray-600'>Ctrl+Enter to commit staged</p>}
           </div>
 
           {/* ── Auto-sync toggle ── */}

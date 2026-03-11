@@ -1266,7 +1266,9 @@ export const useAppStore = create<AppStore>()(
  *
  * Steps:
  * 1. Invalidate the debounced-write cache so stale data isn't flushed.
- * 2. Reset all in-memory state (tabs, active request, etc.) to defaults.
+ * 2. Reset ALL state (tabs, persisted data) to empty defaults so that if the
+ *    new workspace directory is empty (storage returns null), data from the
+ *    previous workspace is not carried over.
  * 3. Call `persist.rehydrate()` which re-reads from the current storage
  *    backend (Electron IPC → new workspace directory, or localStorage).
  */
@@ -1274,14 +1276,28 @@ export async function rehydrateWorkspace(): Promise<void> {
   // 1. Prevent any queued debounced writes from overwriting the new workspace
   invalidateWriteCache();
 
-  // 2. Reset transient state that isn't persisted (tabs, active request)
+  // 2. Reset ALL persisted + transient state to clean defaults.
+  //    This is critical: if the new workspace directory is empty, zustand's
+  //    persist.rehydrate() returns null and leaves the old state unchanged.
+  //    By clearing first we guarantee a blank slate for every workspace switch.
   useAppStore.setState({
     tabs: [],
     activeTabId: null,
     activeRequest: null,
+    collections: [],
+    environments: [],
+    activeEnvironmentId: null,
+    history: [],
+    openApiDocuments: [],
+    sidebarWidth: 280,
+    sidebarCollapsed: false,
+    requestPanelWidth: 50,
+    panelLayout: 'horizontal',
+    _entityIndex: buildEntityIndex([]),
   });
 
-  // 3. Re-read persisted state from the now-active workspace
+  // 3. Re-read persisted state from the now-active workspace.
+  //    If the workspace has data it will override the defaults above.
   await useAppStore.persist.rehydrate();
 
   // 4. Rebuild the entity index from the freshly loaded collections (#26)

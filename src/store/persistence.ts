@@ -85,6 +85,32 @@ export function registerGitSyncProvider(provider: GitSyncInfoProvider) {
   _gitSyncInfoProvider = provider;
 }
 
+// ---------------------------------------------------------------------------
+// Active workspace ID callback (browser-mode storage isolation)
+// ---------------------------------------------------------------------------
+// In browser mode we use localStorage.  Without workspace-scoping every
+// workspace would share the same "fetchy-storage" key.  workspacesStore
+// registers a provider here so we can suffix the key with the active
+// workspace ID, giving each workspace its own isolated localStorage slot.
+// ---------------------------------------------------------------------------
+
+type ActiveWorkspaceIdProvider = () => string | null;
+let _activeWorkspaceIdProvider: ActiveWorkspaceIdProvider | null = null;
+
+/**
+ * Register a callback that returns the currently-active workspace ID.
+ * Called by workspacesStore at module init time (same pattern as git sync).
+ */
+export function registerActiveWorkspaceIdProvider(provider: ActiveWorkspaceIdProvider) {
+  _activeWorkspaceIdProvider = provider;
+}
+
+/** Returns the browser localStorage key scoped to the active workspace. */
+function getBrowserStorageKey(baseName: string): string {
+  const wsId = _activeWorkspaceIdProvider?.();
+  return wsId ? `${baseName}:${wsId}` : baseName;
+}
+
 /**
  * Trigger a debounced git auto-commit+push if the active workspace has
  * gitAutoSync enabled.  Called after every successful write to storage.
@@ -671,14 +697,16 @@ export const createCustomStorage = (): StateStorage => {
   // -- Browser / localStorage fallback ----------------------------------------
   return {
     getItem: (name: string): string | null => {
-      const raw = localStorage.getItem(name);
+      // Use a workspace-scoped key so each browser workspace has its own slot.
+      const scopedName = getBrowserStorageKey(name);
+      const raw = localStorage.getItem(scopedName);
       if (!raw) return null;
 
       try {
         let stateWrapper = JSON.parse(raw);
 
         // Hydrate: merge secrets + strip transient values (#27 shared pipeline)
-        const secretsRaw = localStorage.getItem(`${name}-secrets`);
+        const secretsRaw = localStorage.getItem(`${scopedName}-secrets`);
         if (secretsRaw) {
           const secretsStorage: SecretsStorage = JSON.parse(secretsRaw);
           if (secretsStorage?.secrets) {
@@ -701,21 +729,23 @@ export const createCustomStorage = (): StateStorage => {
 
     setItem: (name: string, value: string): void => {
       try {
+        const scopedName = getBrowserStorageKey(name);
         const stateWrapper = JSON.parse(value);
 
         // Shared write pipeline: truncate history, strip transient, extract secrets (#27)
         const { cleanState, secretsMap } = prepareForWrite(stateWrapper);
-        localStorage.setItem(name, JSON.stringify(cleanState));
+        localStorage.setItem(scopedName, JSON.stringify(cleanState));
         const secretsStorage: SecretsStorage = { version: '1.0', secrets: secretsMap };
-        localStorage.setItem(`${name}-secrets`, JSON.stringify(secretsStorage));
+        localStorage.setItem(`${scopedName}-secrets`, JSON.stringify(secretsStorage));
       } catch (error) {
         console.error('Error persisting to localStorage:', error);
       }
     },
 
     removeItem: (name: string): void => {
-      localStorage.removeItem(name);
-      localStorage.removeItem(`${name}-secrets`);
+      const scopedName = getBrowserStorageKey(name);
+      localStorage.removeItem(scopedName);
+      localStorage.removeItem(`${scopedName}-secrets`);
     },
   };
 };
