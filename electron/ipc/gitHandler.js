@@ -17,9 +17,11 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { requireString, requireDirectoryPath, requireSafeRelativePath, requireOneOf, optionalString, requirePositiveInt, requireArray } = require('./validate');
 
-// Unique null-byte delimiter for git log parsing —
-// impossible in commit messages, avoids conflicts with | or other characters.
-const GIT_LOG_SEP = '\x00';
+// Delimiter for git --format arguments: use git's %x00 specifier so the
+// argument string itself contains no literal null bytes (Node rejects those),
+// but git still outputs \x00 in the result for reliable parsing.
+const GIT_LOG_FMT_SEP = '%x00';     // used inside --format= strings
+const GIT_LOG_PARSE_SEP = '\x00';   // used to split the output
 
 /**
  * Run a git command in the given cwd.
@@ -112,12 +114,12 @@ function register(ipcMain, deps) {
 
       // Get last commit info
       const logResult = await runGit(
-        ['log', '-1', `--format=%H${GIT_LOG_SEP}%s${GIT_LOG_SEP}%an${GIT_LOG_SEP}%ai`],
+        ['log', '-1', `--format=%H${GIT_LOG_FMT_SEP}%s${GIT_LOG_FMT_SEP}%an${GIT_LOG_FMT_SEP}%ai`],
         directory
       );
       let lastCommit = null;
       if (logResult.success && logResult.stdout.trim()) {
-        const parts = logResult.stdout.trim().split(GIT_LOG_SEP);
+        const parts = logResult.stdout.trim().split(GIT_LOG_PARSE_SEP);
         lastCommit = {
           hash: parts[0] || '',
           message: parts[1] || '',
@@ -334,7 +336,7 @@ function register(ipcMain, deps) {
       if (!directory) return { success: false, error: 'No directory specified' };
       const n = count || 20;
       const result = await runGit(
-        ['log', `--max-count=${n}`, `--format=%H${GIT_LOG_SEP}%s${GIT_LOG_SEP}%an${GIT_LOG_SEP}%ai`],
+        ['log', `--max-count=${n}`, `--format=%H${GIT_LOG_FMT_SEP}%s${GIT_LOG_FMT_SEP}%an${GIT_LOG_FMT_SEP}%ai`],
         directory
       );
       if (!result.success) return { success: false, error: result.stderr };
@@ -344,7 +346,7 @@ function register(ipcMain, deps) {
         .split('\n')
         .filter((l) => l.trim() !== '')
         .map((line) => {
-          const parts = line.split(GIT_LOG_SEP);
+          const parts = line.split(GIT_LOG_PARSE_SEP);
           return {
             hash: parts[0] || '',
             message: parts[1] || '',
@@ -579,13 +581,13 @@ function register(ipcMain, deps) {
     try {
       requireDirectoryPath(directory, 'directory');
       const localResult = await runGit(
-        ['branch', '--format=%(refname:short)' + GIT_LOG_SEP + '%(objectname:short)' + GIT_LOG_SEP + '%(HEAD)'],
+        ['branch', '--format=%(refname:short)' + GIT_LOG_FMT_SEP + '%(objectname:short)' + GIT_LOG_FMT_SEP + '%(HEAD)'],
         directory
       );
       const local = [];
       if (localResult.success) {
         localResult.stdout.trim().split('\n').filter(l => l.trim()).forEach(line => {
-          const parts = line.split(GIT_LOG_SEP);
+          const parts = line.split(GIT_LOG_PARSE_SEP);
           local.push({
             name: parts[0] || '',
             hash: parts[1] || '',
@@ -595,13 +597,13 @@ function register(ipcMain, deps) {
         });
       }
       const remoteResult = await runGit(
-        ['branch', '-r', '--format=%(refname:short)' + GIT_LOG_SEP + '%(objectname:short)'],
+        ['branch', '-r', '--format=%(refname:short)' + GIT_LOG_FMT_SEP + '%(objectname:short)'],
         directory
       );
       const remote = [];
       if (remoteResult.success) {
         remoteResult.stdout.trim().split('\n').filter(l => l.trim()).forEach(line => {
-          const parts = line.split(GIT_LOG_SEP);
+          const parts = line.split(GIT_LOG_PARSE_SEP);
           const name = parts[0] || '';
           if (name.includes('HEAD')) return;
           remote.push({
