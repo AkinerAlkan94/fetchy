@@ -54,38 +54,6 @@ export const isElectron =
   typeof window !== 'undefined' && !!(window as any).electronAPI;
 
 // ---------------------------------------------------------------------------
-// Git auto-sync (debounced)
-// ---------------------------------------------------------------------------
-
-let gitSyncTimer: ReturnType<typeof setTimeout> | null = null;
-
-// ---------------------------------------------------------------------------
-// Git auto-sync callback (#31)
-// ---------------------------------------------------------------------------
-// To avoid a circular `require()` between persistence.ts and workspacesStore,
-// we use a callback pattern.  workspacesStore registers a callback at init time
-// that provides the info persistence needs to decide if/how to git-sync.
-// ---------------------------------------------------------------------------
-
-interface GitSyncInfo {
-  gitAutoSync: boolean;
-  homeDirectory: string;
-}
-
-/** Callback that returns git sync info for the active workspace, or null. */
-type GitSyncInfoProvider = () => GitSyncInfo | null;
-
-let _gitSyncInfoProvider: GitSyncInfoProvider | null = null;
-
-/**
- * Register a callback that provides git sync info for the active workspace.
- * Called by workspacesStore at module init time to break the circular dependency.
- */
-export function registerGitSyncProvider(provider: GitSyncInfoProvider) {
-  _gitSyncInfoProvider = provider;
-}
-
-// ---------------------------------------------------------------------------
 // Active workspace ID callback (browser-mode storage isolation)
 // ---------------------------------------------------------------------------
 // In browser mode we use localStorage.  Without workspace-scoping every
@@ -109,43 +77,6 @@ export function registerActiveWorkspaceIdProvider(provider: ActiveWorkspaceIdPro
 function getBrowserStorageKey(baseName: string): string {
   const wsId = _activeWorkspaceIdProvider?.();
   return wsId ? `${baseName}:${wsId}` : baseName;
-}
-
-/**
- * Trigger a debounced git auto-commit+push if the active workspace has
- * gitAutoSync enabled.  Called after every successful write to storage.
- * Skips sync when a merge is in progress to avoid committing half-resolved conflicts.
- */
-function triggerGitAutoSync() {
-  if (!isElectron) return;
-  if (!_gitSyncInfoProvider) return;
-
-  const info = _gitSyncInfoProvider();
-  if (!info?.gitAutoSync || !info.homeDirectory) return;
-
-  if (gitSyncTimer) clearTimeout(gitSyncTimer);
-  gitSyncTimer = setTimeout(async () => {
-    try {
-      const api = (window as any).electronAPI;
-      if (!api?.gitAddCommitPush) return;
-
-      // Do NOT auto-sync while a merge conflict is in progress
-      if (api.gitIsMerging) {
-        const mergeState = await api.gitIsMerging({ directory: info.homeDirectory });
-        if (mergeState?.merging) {
-          console.warn('Git auto-sync skipped: merge in progress');
-          return;
-        }
-      }
-
-      await api.gitAddCommitPush({
-        directory: info.homeDirectory,
-        message: `Fetchy auto-sync ${new Date().toISOString()}`,
-      });
-    } catch (e) {
-      console.error('Git auto-sync failed:', e);
-    }
-  }, 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -666,9 +597,6 @@ export const createCustomStorage = (): StateStorage => {
           await api.writeSecrets({
             content: JSON.stringify(secretsStorage, null, 2),
           });
-
-          // Trigger git auto-sync
-          triggerGitAutoSync();
         } catch (error) {
           console.error('Error writing to split file storage:', error);
         }

@@ -70,7 +70,6 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
   const handleShowCode = useCallback((language: string = 'curl') => {
     if (!request) return;
     setCodeModal({ open: true, activeLanguage: language, copied: false });
-    setShowCodeDropdown(false);
   }, [request]);
 
   const getCodeForLanguage = (language: string): string => {
@@ -203,7 +202,7 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
     if (!activeTab?.collectionId) return null;
     const collection = collections.find(c => c.id === activeTab.collectionId);
     if (!collection) return null;
-    return resolveInheritedAuth(collection, activeTab.folderId);
+    return resolveInheritedAuth(collection, activeTab.folderId ?? undefined);
   }, [activeTab?.collectionId, activeTab?.folderId, collections]);
 
   const handleSend = useCallback(async () => {

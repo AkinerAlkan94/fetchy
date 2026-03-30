@@ -12,8 +12,6 @@ import {
   Edit2,
   Layers,
   Lock,
-  GitBranch,
-  Loader2,
 } from 'lucide-react';
 import { useWorkspacesStore } from '../store/workspacesStore';
 import { Workspace } from '../types';
@@ -24,8 +22,6 @@ interface WorkspacesModalProps {
 }
 
 type Mode = 'list' | 'add' | 'edit';
-type AddSubMode = 'manual' | 'git';
-type GitCloneStatus = 'idle' | 'cloning' | 'success' | 'error';
 
 interface FormState {
   name: string;
@@ -57,30 +53,12 @@ export default function WorkspacesModal({ isOpen, onClose }: WorkspacesModalProp
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
-  // Git-clone add-sub-mode state
-  const [addSubMode, setAddSubMode] = useState<AddSubMode>('manual');
-  const [gitUrl, setGitUrl] = useState('');
-  const [gitDirectory, setGitDirectory] = useState('');
-  const [gitSecretsDirectory, setGitSecretsDirectory] = useState('');
-  const [gitWorkspaceName, setGitWorkspaceName] = useState('');
-  const [gitAvailable, setGitAvailable] = useState<boolean | null>(null);
-  const [gitCloneStatus, setGitCloneStatus] = useState<GitCloneStatus>('idle');
-  const [gitCloneMessage, setGitCloneMessage] = useState('');
-
   useEffect(() => {
     if (isOpen) {
       loadWorkspaces();
       setMode('list');
       setStatus(null);
       setConfirmRemoveId(null);
-      setAddSubMode('manual');
-      setGitUrl('');
-      setGitDirectory('');
-      setGitSecretsDirectory('');
-      setGitWorkspaceName('');
-      setGitAvailable(null);
-      setGitCloneStatus('idle');
-      setGitCloneMessage('');
     }
   }, [isOpen, loadWorkspaces]);
 
@@ -89,56 +67,6 @@ export default function WorkspacesModal({ isOpen, onClose }: WorkspacesModalProp
   const showStatus = (type: 'success' | 'error', message: string) => {
     setStatus({ type, message });
     if (type === 'success') setTimeout(() => setStatus(null), 3000);
-  };
-
-  // ── Git-clone helpers ───────────────────────────────────────────────────────
-  const checkGit = async () => {
-    if (!isElectron || !window.electronAPI?.gitCheck) { setGitAvailable(false); return; }
-    const result = await window.electronAPI.gitCheck();
-    setGitAvailable(result.available);
-  };
-
-  const handleGitClone = async () => {
-    const name = gitWorkspaceName.trim();
-    if (!name) { showStatus('error', 'Please enter a workspace name.'); return; }
-    if (!gitUrl.trim()) { showStatus('error', 'Please enter a repository URL.'); return; }
-    if (!gitDirectory.trim()) { showStatus('error', 'Please select a directory to clone into.'); return; }
-    if (!gitSecretsDirectory.trim()) { showStatus('error', 'Please select a secrets directory.'); return; }
-    if (!window.electronAPI) return;
-
-    setGitCloneStatus('cloning');
-    setGitCloneMessage('Cloning repository… this may take a moment.');
-    setIsBusy(true);
-
-    try {
-      const cloneResult = await window.electronAPI.gitClone({
-        url: gitUrl.trim(),
-        directory: gitDirectory.trim(),
-      });
-
-      if (!cloneResult.success) {
-        setGitCloneStatus('error');
-        setGitCloneMessage(cloneResult.error || 'Clone failed.');
-        setIsBusy(false);
-        return;
-      }
-
-      setGitCloneStatus('success');
-      setGitCloneMessage('Repository cloned — creating workspace…');
-
-      const newWs = await addWorkspace(name, gitDirectory.trim(), gitSecretsDirectory.trim());
-
-      // Enable git auto-sync for the cloned workspace
-      await updateWorkspace(newWs.id, { gitAutoSync: true });
-
-      // Switch to the newly created workspace and close
-      await switchWorkspace(newWs.id);
-      onClose();
-    } catch (e) {
-      setGitCloneStatus('error');
-      setGitCloneMessage(e instanceof Error ? e.message : 'Clone failed.');
-      setIsBusy(false);
-    }
   };
 
   // ── Directory picker ────────────────────────────────────────────────────────
@@ -377,35 +305,11 @@ export default function WorkspacesModal({ isOpen, onClose }: WorkspacesModalProp
             </div>
           )}
 
-          {/* ADD form — tabs: manual | clone from Git */}
+          {/* ADD form */}
           {mode === 'add' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white uppercase tracking-wider">New Workspace</h3>
-                {/* Mode tabs (Electron only — git requires electron IPC) */}
-                {isElectron && (
-                  <div className="flex border border-[#2d2d44] rounded overflow-hidden text-xs">
-                    <button
-                      onClick={() => { setAddSubMode('manual'); setGitCloneStatus('idle'); setGitCloneMessage(''); }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${addSubMode === 'manual' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-[#2d2d44]'}`}
-                    >
-                      <Layers size={12} />
-                      Manual
-                    </button>
-                    <button
-                      onClick={() => { setAddSubMode('git'); checkGit(); }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${addSubMode === 'git' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-[#2d2d44]'}`}
-                    >
-                      <GitBranch size={12} />
-                      Clone from Git
-                    </button>
-                  </div>
-                )}
-              </div>
+              <h3 className="text-sm font-semibold text-white uppercase tracking-wider">New Workspace</h3>
 
-              {/* ── Manual ── */}
-              {addSubMode === 'manual' && (
-                <>
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Workspace Name</label>
                     <input
@@ -458,7 +362,7 @@ export default function WorkspacesModal({ isOpen, onClose }: WorkspacesModalProp
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-gray-600 mt-1">Keep this in a secure, private location (e.g. outside version control).</p>
+                    <p className="text-xs text-gray-600 mt-1">Keep this in a secure, private location.</p>
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button onClick={handleAdd} disabled={isBusy} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 transition-colors text-sm">
@@ -469,142 +373,8 @@ export default function WorkspacesModal({ isOpen, onClose }: WorkspacesModalProp
                       Cancel
                     </button>
                   </div>
-                </>
-              )}
-
-              {/* ── Clone from Git ── */}
-              {addSubMode === 'git' && (
-                <>
-                  <p className="text-xs text-gray-400">
-                    Clone an existing Git repository into a new workspace. Collections, environments, and API definitions will be loaded from the cloned directory.
-                  </p>
-
-                  {gitAvailable === false && (
-                    <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-800 rounded px-3 py-2">
-                      <AlertCircle size={12} className="shrink-0" />
-                      Git is not available. Install Git and ensure it is in your PATH.
-                    </div>
-                  )}
-
-                  {gitAvailable !== false && (
-                    <>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Workspace Name *</label>
-                        <input
-                          type="text"
-                          value={gitWorkspaceName}
-                          onChange={(e) => setGitWorkspaceName(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm focus:outline-none focus:border-purple-500"
-                          placeholder="e.g. My Project"
-                          autoFocus
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                          <GitBranch size={12} />
-                          Repository URL *
-                        </label>
-                        <input
-                          type="text"
-                          value={gitUrl}
-                          onChange={(e) => setGitUrl(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm font-mono focus:outline-none focus:border-purple-500"
-                          placeholder="https://github.com/user/repo.git"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                          <FolderOpen size={12} />
-                          Clone into directory *
-                          <span className="text-gray-600 ml-1">— becomes the home directory</span>
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={gitDirectory}
-                            onChange={(e) => setGitDirectory(e.target.value)}
-                            className="flex-1 px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm font-mono focus:outline-none focus:border-purple-500"
-                            placeholder="/path/to/clone"
-                          />
-                          <button
-                            onClick={async () => {
-                              if (!window.electronAPI) return;
-                              const dir = await window.electronAPI.selectDirectory({ title: 'Select directory for repository clone' });
-                              if (dir) setGitDirectory(dir);
-                            }}
-                            className="px-3 py-2 bg-[#2d2d44] text-gray-300 rounded hover:bg-[#3d3d54] transition-colors"
-                            title="Browse"
-                          >
-                            <FolderOpen size={16} />
-                          </button>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                          <Lock size={12} />
-                          Secrets directory *
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={gitSecretsDirectory}
-                            onChange={(e) => setGitSecretsDirectory(e.target.value)}
-                            className="flex-1 px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm font-mono focus:outline-none focus:border-purple-500"
-                            placeholder="/path/to/secrets"
-                          />
-                          <button
-                            onClick={async () => {
-                              if (!window.electronAPI) return;
-                              const dir = await window.electronAPI.selectDirectory({ title: 'Select secrets directory' });
-                              if (dir) setGitSecretsDirectory(dir);
-                            }}
-                            className="px-3 py-2 bg-[#2d2d44] text-gray-300 rounded hover:bg-[#3d3d54] transition-colors"
-                            title="Browse"
-                          >
-                            <FolderOpen size={16} />
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-600 mt-1">Store outside the repository to keep secrets out of version control.</p>
-                      </div>
-
-                      {/* Clone progress */}
-                      {gitCloneStatus !== 'idle' && (
-                        <div className={`flex items-center gap-2 p-2.5 rounded text-xs border ${
-                          gitCloneStatus === 'cloning' ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
-                          : gitCloneStatus === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-300'
-                          : 'bg-red-500/10 border-red-500/30 text-red-300'
-                        }`}>
-                          {gitCloneStatus === 'cloning' && <Loader2 size={12} className="animate-spin shrink-0" />}
-                          {gitCloneStatus === 'success' && <Check size={12} className="shrink-0" />}
-                          {gitCloneStatus === 'error' && <AlertCircle size={12} className="shrink-0" />}
-                          <span className="truncate">{gitCloneMessage}</span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3 pt-1">
-                        <button
-                          onClick={handleGitClone}
-                          disabled={isBusy || gitAvailable !== true}
-                          className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors font-medium text-sm"
-                        >
-                          {isBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                          Clone & Create Workspace
-                        </button>
-                        <button
-                          onClick={() => { setMode('list'); setGitCloneStatus('idle'); setGitCloneMessage(''); setStatus(null); }}
-                          disabled={isBusy}
-                          className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
             </div>
           )}
-
           {/* EDIT form */}
           {mode === 'edit' &&
             renderForm('Edit Workspace', handleEditSave, () => {

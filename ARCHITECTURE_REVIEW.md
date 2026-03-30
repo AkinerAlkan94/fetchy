@@ -36,7 +36,6 @@
 | **`window.location.reload()`** for workspace switching — discards unsaved state, creates race conditions with multiple rapid switches | `src/store/workspacesStore.ts` L137, L155, L176 |
 | **Non-atomic file writes** — `fs.writeFileSync` without temp-file+rename; a crash or power loss mid-write corrupts the entire workspace JSON | `electron/main.js` L258 |
 | **Full state serialized on every mutation** — a failed write loses all changes, and no backup/snapshot mechanism exists | `src/store/persistence.ts` L228 |
-| **Git auto-sync failures are silently swallowed** — user has no indication their data didn't push; pull-before-push not implemented, so concurrent users can diverge | `src/store/persistence.ts` L50 |
 | **No request timeout configurability** — hard-coded 30s for HTTP, 60s for AI; long-running APIs get killed arbitrarily | `electron/main.js` L540 |
 | **Storage watcher race window** — the 2-second "own-write" suppression window is arbitrary; a slow disk could still trigger false reload | `electron/main.js` L27 |
 
@@ -46,7 +45,7 @@
 
 | Weakness | Location |
 |:---|:---|
-| **Arbitrary code execution** — `new Function(script)` runs user/imported scripts in the renderer with access to `window.electronAPI` (read/write files, execute git, read secrets) | `src/utils/httpClient.ts` L291, L330 |
+| **Arbitrary code execution** — `new Function(script)` runs user/imported scripts in the renderer with access to `window.electronAPI` (read/write files, read secrets) | `src/utils/httpClient.ts` L291, L330 |
 | **Path traversal in IPC** — `read-data` / `write-data` join unsanitized filenames with the data directory; `../../` escapes to arbitrary filesystem paths | `electron/main.js` L244, L258 |
 | **TLS verification unconditionally disabled** — `rejectUnauthorized: false` on all HTTP requests including AI API calls carrying API keys, enabling MITM attacks | `electron/main.js` L512, L759 |
 | **Secrets stored as plaintext JSON** — `fetchy-secrets.json` and `ai-secrets.json` are unencrypted on disk; no use of Electron's `safeStorage` or OS keychain | `electron/main.js` L273 |
@@ -54,7 +53,6 @@
 | **Browser mode: secrets in localStorage** — accessible to any JS on the page (XSS vector) | `src/store/persistence.ts` L273 |
 | **No IPC input validation** — all `ipcMain.handle` callbacks trust renderer-supplied parameters without schema validation | `electron/main.js` (throughout) |
 | **Gemini API key in URL query string** — API key passed as `?key=` URL parameter, visible in logs and potentially leaked via referrer headers | `electron/main.js` L654 |
-| **Git credentials handled implicitly** — `git clone`, `git push` rely on ambient OS credentials with no scoped auth | `electron/main.js` L948 |
 
 ---
 
@@ -62,7 +60,7 @@
 
 | Weakness | Location |
 |:---|:---|
-| **Monolithic main process** — 1,169 lines mixing window management, preferences, HTTP proxy, AI routing, Git ops, secrets, and workspaces in a single file | `electron/main.js` |
+| **Monolithic main process** — 1,169 lines mixing window management, preferences, HTTP proxy, AI routing, secrets, and workspaces in a single file | `electron/main.js` |
 | **Giant components** — Sidebar (1,708 lines), RequestPanel (1,341), AIAssistant (716), App (570); each violates SRP and is extremely difficult to review or modify safely | `src/components/Sidebar.tsx`, `src/components/RequestPanel.tsx` |
 | **Main process is plain JS, rest is TypeScript** — the most security-critical layer lacks type safety, making refactoring risky | `electron/main.js` |
 | **No linting configuration** — no `.eslintrc`, `.prettierrc`, or equivalent visible in the project root; code style enforcement relies on convention only | Project root |
@@ -85,7 +83,6 @@
 | **AbortController not wired to requests** — the collection runner checks `signal.aborted` between requests, but in-flight requests cannot be cancelled; "Stop" doesn't actually stop the current request | `src/components/RunCollectionModal.tsx` |
 | **`importCollection` doesn't regenerate child IDs** — new collection ID is generated, but all inner request/folder IDs are preserved; duplicating an import creates ID collisions in the store | `src/store/appStore.ts` L831 |
 | **Export only sanitizes 2 nesting levels** — `exportFullStorage` sanitizes `folder.auth` and `subFolder.auth` but deeper nesting is untouched; secrets in deeply nested folders leak into exports | `src/store/appStore.ts` L862 |
-| **Git log parsing uses `\|` as delimiter** — commit messages containing `\|` corrupt the parsed hash/message/author/date fields | `electron/main.js` L1094 |
 | **No request cancellation for manual execution** — once "Send" is pressed, there's no way to cancel an in-flight HTTP request | `src/utils/httpClient.ts` |
 | **Script execution has no timeout** — a `while(true){}` in a pre-script freezes the entire renderer permanently with no recovery | `src/utils/httpClient.ts` L291 |
 | **Pause in collection runner uses CPU-burning polling** — `while(pauseRef.current) await sleep(100)` busy-waits, draining battery and CPU | `src/components/RunCollectionModal.tsx` |
@@ -99,7 +96,6 @@
 | **Browser mode is dev-only** — the CORS proxy is a Vite dev-server plugin; production builds have no browser HTTP support, making the "browser fallback" non-functional in shipped builds | `vite.config.ts` L10 |
 | **FormData not supported through Electron IPC** — `httpRequest` IPC only accepts `string` body; `form-data` body type silently falls back to `undefined` in Electron mode | `src/utils/httpClient.ts` L174 |
 | **No corporate proxy support** — HTTP requests go direct; users behind corporate proxies/firewalls cannot use Fetchy without manual OS-level proxy config | `electron/main.js` L505 |
-| **Git assumes `git` on PATH** — no bundled git, no detection of Git install location; fails silently on systems without Git | `electron/main.js` L842 |
 | **No data format migration system** — exports carry `version: "1.0"` but there is no migration handler for breaking schema changes between app versions | `src/store/persistence.ts` L238 |
 | **No import schema validation** — `importWorkspaceFromJson`, `importCollection`, and Postman/Hoppscotch/Bruno importers trust input shape without validation; malformed files produce cryptic runtime errors | `src/store/workspacesStore.ts`, `src/utils/` |
 | **Vite 4 + Electron 40** — Vite 4 is EOL (Vite 6 is current); Electron 40's Chromium may lack latest web API support or security patches | `package.json` |
@@ -152,13 +148,12 @@
 
 | # | Issue | ASR | Effort | What to do |
 |:---:|:---|:---:|:---:|:---|
-| 13 | **Decompose `electron/main.js`** — 1,169 lines mixing 7+ concerns in plain JS | Maintainability | Medium | Split into `ipc/` modules (`fileHandlers`, `httpHandler`, `aiHandler`, `gitHandler`, `secretsHandler`, `workspaceHandler`); migrate to TypeScript |
+| 13 | **Decompose `electron/main.js`** — 1,169 lines mixing 7+ concerns in plain JS | Maintainability | Medium | Split into `ipc/` modules (`fileHandlers`, `httpHandler`, `aiHandler`, `secretsHandler`, `workspaceHandler`); migrate to TypeScript |
 | 14 | **Replace `window.location.reload()`** — workspace switching discards unsaved state and is untestable | Reliability | Medium | Implement `store.reset()` + `persist.rehydrate()` cycle; prompt user to save unsaved changes before switching |
 | 15 | **Wire AbortController to requests** — "Stop" in collection runner and manual execution can't actually cancel in-flight requests | Func. Stability | Low | Pass `AbortSignal` through to the Electron IPC HTTP handler; abort the underlying `http.request` on signal |
 | 16 | **Fix auth inheritance depth** — only resolves folder → collection, not deeply nested folder chains | Func. Stability | Low | Walk the full ancestor chain (child folder → parent folder → … → collection) collecting the first non-`inherit` auth |
 | 17 | **Add concurrency limit to collection runner** — parallel mode fires all requests simultaneously | Func. Stability | Low | Use a concurrency pool (e.g., `p-limit(10)`) to cap simultaneous in-flight requests |
 | 18 | **Fix `exportFullStorage` nesting depth** — auth sanitization only covers 2 levels; secrets leak in deeper folders | Func. Stability + Security | Low | Use a recursive sanitizer that walks the entire folder tree |
-| 19 | **Fix git log delimiter** — `\|` in commit messages corrupts parsed fields | Func. Stability | Low | Use `--format=%x00%H%x00%s%x00%an%x00%ai` with null-byte delimiter (impossible in commit messages) |
 | 20 | **Add IPC input validation** — all `ipcMain.handle` callbacks trust renderer-supplied parameters | Security | Medium | Validate/schema-check every IPC parameter (at minimum: type checks, path validation, string length limits) |
 
 ---
@@ -177,7 +172,7 @@
 | 28 | **Add data format migration system** — exports carry `version: "1.0"` with no migration handler for schema changes | Compatibility | Medium | Implement a version-aware migration chain: `{ "1.0" → "1.1": migrateFn, ... }` run on load |
 | 29 | **Upgrade Vite + Electron** — Vite 4 is EOL, Electron 40's Chromium lacks latest security patches | Compatibility | Medium | Upgrade to Vite 6 + latest Electron LTS; audit breaking changes |
 | 30 | **Add lint/format tooling** — no ESLint/Prettier configuration; style enforced by convention only | Maintainability | Low | Add `.eslintrc` + `.prettierrc`; add `lint` and `format` scripts; enforce in CI |
-| 31 | **Eliminate circular `require()`** — `persistence.ts` dynamically requires `workspacesStore` | Maintainability | Low | Break the cycle by having `persistence.ts` accept a callback or use an event emitter for git auto-sync, rather than reading another store |
+| 31 | **Eliminate circular `require()`** — `persistence.ts` dynamically requires `workspacesStore` | Maintainability | Low | Break the cycle by removing the dynamic `require()` call and any cross-store dependencies |
 
 ---
 
@@ -194,7 +189,7 @@
                   ├────────────────────┼────────────────────┼────────────────────┤
                   │                    │                    │                    │
   High Impact     │  #15 #16 #17 #18  │  #13 #14 #20       │  #21 #22 #26       │
-                  │  #19              │                    │                    │
+                  │                    │                    │                    │
                   │                    │                    │                    │
                   ├────────────────────┼────────────────────┼────────────────────┤
                   │                    │                    │                    │
@@ -204,4 +199,4 @@
                   └────────────────────┴────────────────────┴────────────────────┘
 ```
 
-> **Quick wins** (low effort + critical/high impact): Items **#2, #3, #4, #5, #6, #7, #9, #11, #12, #15, #16, #17, #18, #19** — these 14 items address vulnerabilities across all 5 ASRs with individually small changes. Targeting these first delivers the highest ROI.
+> **Quick wins** (low effort + critical/high impact): Items **#2, #3, #4, #5, #6, #7, #9, #11, #12, #15, #16, #17, #18** — these 13 items address vulnerabilities across all 5 ASRs with individually small changes. Targeting these first delivers the highest ROI.

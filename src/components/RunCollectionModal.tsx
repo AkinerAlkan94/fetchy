@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Play, Pause, Square, CheckCircle2, XCircle, AlertCircle, Clock, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
-import { Collection, ApiRequest, RequestFolder, ApiResponse, HttpMethod } from '../types';
+import { ApiRequest, RequestFolder, ApiResponse, HttpMethod } from '../types';
 import { executeRequest } from '../utils/httpClient';
 import { resolveInheritedAuth } from '../utils/authInheritance';
 import { getMethodBgColor } from '../utils/helpers';

@@ -144,7 +144,7 @@ headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
 
 **Status:** ✅ Complete
 
-**Problem:** `electron/main.js` was a 1,776-line monolith mixing 7+ unrelated concerns (file I/O, secrets encryption, HTTP proxying, AI requests, Git operations, workspace management, window lifecycle). This made the file difficult to navigate, test, and maintain.
+**Problem:** `electron/main.js` was a 1,776-line monolith mixing 7+ unrelated concerns (file I/O, secrets encryption, HTTP proxying, AI requests, workspace management, window lifecycle). This made the file difficult to navigate, test, and maintain.
 
 **Solution:** Extracted every IPC handler group into a dedicated module under `electron/ipc/`, leaving `main.js` as a thin orchestrator (~373 lines) responsible only for:
 - App lifecycle (`app.whenReady`, `window-all-closed`, `activate`)
@@ -160,7 +160,6 @@ headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
 | `electron/ipc/secretsHandler.js` | Encrypted secrets read/write/delete | `read-secrets`, `write-secrets`, `read-ai-secrets`, `write-ai-secrets`, `delete-ai-secrets` |
 | `electron/ipc/httpHandler.js` | Proxied HTTP requests with response cap | `http-request` |
 | `electron/ipc/aiHandler.js` | AI provider requests (OpenAI, Claude, Gemini, Ollama, custom) | `ai-request` |
-| `electron/ipc/gitHandler.js` | All Git operations + merge conflict resolution | `git-check`, `git-status`, `git-init`, `git-clone`, `git-pull`, `git-push`, `git-add-commit`, `git-add-commit-push`, `git-log`, `git-remote-get`, `git-remote-set`, `git-fetch`, `git-check-pull-available`, `git-merge-conflicts`, `git-is-merging`, `git-show-conflict-version`, `git-resolve-conflict`, `git-resolve-all-conflicts`, `git-read-file-content`, `git-show-base-version`, `git-write-resolved-content`, `git-merge-abort` |
 | `electron/ipc/workspaceHandler.js` | Preferences + workspace management + import/export | `get-preferences`, `save-preferences`, `select-home-directory`, `get-home-directory`, `migrate-data`, `get-workspaces`, `save-workspaces`, `select-directory`, `export-workspace-to-json`, `import-workspace-from-json` |
 | `electron/ipc/index.js` | Barrel export for all modules | — |
 
@@ -314,26 +313,6 @@ const sanitizeFolders = (folders: any[]): any[] => {
 
 ---
 
-## #19 · Fix git log delimiter — `Fixed`
-
-**Status:** ✅ Complete
-
-**Problem:** Git log parsing used a delimiter character that could potentially appear in commit messages, corrupting the parsed hash/message/author/date fields.
-
-**Root Cause:** The `git-log` and `git-status` handlers in `gitHandler.js` used `\x1e` (ASCII Record Separator) as the delimiter between fields. While `\x1e` is already very safe (it's a non-printable control character unlikely to appear in commit messages), the roadmap specified using `\x00` (null-byte) which is impossible to include in git commit messages since git treats null bytes as string terminators.
-
-**Solution:**
-
-| File | Change |
-|------|--------|
-| `electron/ipc/gitHandler.js` | Changed `GIT_LOG_SEP` from `\x1e` to `\x00` (null byte). Removed redundant local `logSep` variable in the `git-status` handler and replaced with the module-level `GIT_LOG_SEP` constant. Both `git-status` (single commit) and `git-log` (history) now use the same null-byte delimiter. |
-
-**Before:** `\x1e` delimiter — safe but not guaranteed impossible in commit data.
-
-**After:** `\x00` null-byte delimiter — physically impossible in git commit messages, provides maximum parsing reliability.
-
----
-
 ## #20 · Add IPC input validation — `Fixed`
 
 **Status:** ✅ Complete
@@ -356,19 +335,17 @@ const sanitizeFolders = (folders: any[]): any[] => {
 | `requireUrl(value, name)` | Valid URL with length cap |
 | `requireOneOf(value, name, allowed)` | Enum validation against an allowlist |
 
-**Applied validation to all 6 handler modules:**
+**Applied validation to all 5 handler modules:**
 
 | Module | Key Validations Added |
 |--------|----------------------|
 | `httpHandler.js` | `requireUrl` on URL, `requireHttpMethod` on method, `optionalString` on requestId, `requireObject` on data |
 | `secretsHandler.js` | `requireString` on content with 1 MB size cap for both `write-secrets` and `write-ai-secrets` |
 | `aiHandler.js` | `requireOneOf` on provider, `requireArray` on messages, `optionalString` on apiKey/model/baseUrl, clamped temperature [0,2] and maxTokens [1,1M] |
-| `gitHandler.js` | `requireDirectoryPath` on all directory params, `requireSafeRelativePath` on all filepath params (5 handlers), `requireOneOf` on version/strategy, `requireString` on content/url |
 | `workspaceHandler.js` | `requireObject` on preferences/config/data, `requireDirectoryPath` on oldPath/newPath/homeDirectory/secretsDirectory, `requireString` on workspaceId/name, array check on workspaces |
 | `fileHandlers.js` | Already had `safePath()` traversal guard — no changes needed |
 
 **Security gaps closed:**
-- Git handlers: 5 filepath parameters now have traversal guards (`requireSafeRelativePath`) preventing `../../etc/passwd` attacks
 - Workspace import: `homeDirectory` and `secretsDirectory` validated; `exportData` shape checked
 - Data migration: Both source/destination paths validated
 - HTTP proxy: Method restricted to standard HTTP methods; URL validated
@@ -798,26 +775,17 @@ Once Node 20+ is available, update: `vite@^6`, `vitest@^3`, `@vitejs/plugin-reac
 
 **Status:** ✅ Complete
 
-**Problem:** `persistence.ts` contained a dynamic `require('./workspacesStore')` call inside `triggerGitAutoSync()` to access the active workspace's git sync configuration. This created a circular dependency chain: `persistence.ts` → `workspacesStore.ts` → `appStore.ts` → `persistence.ts`. While the dynamic `require()` worked at runtime (because modules were already loaded by the time the function was called), it was fragile, caused ESLint `no-var-requires` errors, and could break under module bundler optimizations.
+**Problem:** `persistence.ts` contained a dynamic `require('./workspacesStore')` call that created a circular dependency chain: `persistence.ts` → `workspacesStore.ts` → `appStore.ts` → `persistence.ts`. While the dynamic `require()` worked at runtime, it was fragile, caused ESLint `no-var-requires` errors, and could break under module bundler optimizations.
 
-**Solution:** Replaced the dynamic `require()` with a **callback registration pattern**:
-
-1. `persistence.ts` exports `registerGitSyncProvider(callback)` that accepts a function returning `{ gitAutoSync, homeDirectory }` for the active workspace
-2. `triggerGitAutoSync()` calls the registered callback instead of importing workspacesStore
-3. `workspacesStore.ts` imports `registerGitSyncProvider` and registers its callback at module init time (after the store is created)
+**Solution:** Removed the circular dependency by eliminating the git auto-sync feature entirely. The `triggerGitAutoSync()` function and `registerGitSyncProvider()` callback pattern were the sole reason for the cross-store dependency. With git features removed from the application, the dynamic `require()` and all associated code were deleted.
 
 **Dependency Direction (after):**
-- `workspacesStore.ts` → `persistence.ts` (via `registerGitSyncProvider` import) — **one-way, no cycle**
 - `persistence.ts` → `workspacesStore.ts` — **removed entirely**
+- No circular dependency exists
 
 **Files Modified:**
-- `src/store/persistence.ts` — Replaced `triggerGitAutoSync()` body: removed `require('./workspacesStore')`, added `registerGitSyncProvider()` export, added `_gitSyncInfoProvider` slot, `triggerGitAutoSync` now calls the registered provider
-- `src/store/workspacesStore.ts` — Added import of `registerGitSyncProvider`, added registration call after store creation that provides active workspace git sync info
-
-**Design Decisions:**
-- Callback pattern chosen over event emitter for simplicity — only one consumer, one provider
-- Provider returns `null` when no active workspace or git sync is disabled, so `triggerGitAutoSync` can bail out early
-- Registration happens synchronously at module load time, so the provider is always available before any writes occur
+- `src/store/persistence.ts` — Removed `triggerGitAutoSync()`, `registerGitSyncProvider()`, `_gitSyncInfoProvider`, and `GitSyncInfo` interface
+- `src/store/workspacesStore.ts` — Removed `registerGitSyncProvider` import and registration call
 
 **Test Results:** 13 files, 392 tests, 0 failures
 

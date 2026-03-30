@@ -97,7 +97,6 @@ function readSplitStorageSync(homeDir) {
  * @param {function} deps.writeEncryptedSecrets
  * @param {function} deps.startStorageWatcher
  * @param {function} deps.stopStorageWatcher
- * @param {function} deps.ensureHistoryJsonIgnored
  * @param {Electron.Dialog} deps.dialog
  * @param {function} deps.getAppPath - app.getPath bound function
  */
@@ -118,7 +117,6 @@ function register(ipcMain, deps) {
     writeEncryptedSecrets,
     startStorageWatcher,
     stopStorageWatcher,
-    ensureHistoryJsonIgnored,
     dialog,
     getAppPath,
   } = deps;
@@ -189,8 +187,6 @@ function register(ipcMain, deps) {
       if (active) {
         setCustomHomeDirectory(active.homeDirectory || null);
         setCustomSecretsDirectory(active.secretsDirectory || null);
-        // Ensure history.json is excluded from git tracking
-        if (active.homeDirectory) ensureHistoryJsonIgnored(active.homeDirectory);
         // Restart watcher for the new active workspace directory
         if (active.homeDirectory) {
           startStorageWatcher(active.homeDirectory);

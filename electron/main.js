@@ -4,7 +4,7 @@ const fs = require('fs');
 const { initUpdater } = require('./updater');
 
 // IPC handler modules (decomposed from this file – #13)
-const { fileHandlers, secretsHandler, httpHandler, aiHandler, gitHandler, workspaceHandler } = require('./ipc');
+const { fileHandlers, secretsHandler, httpHandler, aiHandler, workspaceHandler } = require('./ipc');
 
 /**
  * Atomic file write: writes content to a temporary file in the same directory,
@@ -357,7 +357,6 @@ const ipcDeps = {
     secretsHandler.writeEncryptedSecrets(dir, name, content, { safeStorage, safeWriteFileSync }),
   startStorageWatcher,
   stopStorageWatcher,
-  ensureHistoryJsonIgnored: gitHandler.ensureHistoryJsonIgnored,
   dialog,
   safeStorage,
   getAppPath: (name) => app.getPath(name),
@@ -367,6 +366,5 @@ fileHandlers.register(ipcMain, ipcDeps);
 secretsHandler.register(ipcMain, ipcDeps);
 httpHandler.register(ipcMain, ipcDeps);
 aiHandler.register(ipcMain, ipcDeps);
-gitHandler.register(ipcMain, ipcDeps);
 workspaceHandler.register(ipcMain, ipcDeps);
 

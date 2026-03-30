@@ -18,7 +18,6 @@ import {
 } from '@dnd-kit/sortable';
 import {
   FilePlus,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   Folder,
@@ -32,7 +31,6 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { Collection, RequestFolder, ApiRequest, RequestHistoryItem } from '../types';
-import { getMethodBgColor } from '../utils/helpers';
 import CollectionAuthModal from './CollectionAuthModal';
 import RunCollectionModal from './RunCollectionModal';
 import Tooltip from './Tooltip';
@@ -56,13 +54,11 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
     addCollection,
     updateCollection,
     toggleCollectionExpanded,
-    addFolder,
     updateFolder,
     toggleFolderExpanded,
     addRequest,
     updateRequest,
     openTab,
-    updateTab,
     tabs,
     activeTabId,
     reorderCollections,

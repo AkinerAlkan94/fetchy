@@ -42,49 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // AI request (provider-agnostic, routed in main process)
   aiRequest: (data) => ipcRenderer.invoke('ai-request', data),
 
-  // Git operations (uses system git)
-  gitCheck: () => ipcRenderer.invoke('git-check'),
-  gitStatus: (data) => ipcRenderer.invoke('git-status', data),
-  gitInit: (data) => ipcRenderer.invoke('git-init', data),
-  gitClone: (data) => ipcRenderer.invoke('git-clone', data),
-  gitPull: (data) => ipcRenderer.invoke('git-pull', data),
-  gitPush: (data) => ipcRenderer.invoke('git-push', data),
-  gitAddCommit: (data) => ipcRenderer.invoke('git-add-commit', data),
-  gitAddCommitPush: (data) => ipcRenderer.invoke('git-add-commit-push', data),
-  gitLog: (data) => ipcRenderer.invoke('git-log', data),
-  gitRemoteGet: (data) => ipcRenderer.invoke('git-remote-get', data),
-  gitRemoteSet: (data) => ipcRenderer.invoke('git-remote-set', data),
-  gitFetch: (data) => ipcRenderer.invoke('git-fetch', data),
-  gitCheckPullAvailable: (data) => ipcRenderer.invoke('git-check-pull-available', data),
-  gitMergeConflicts: (data) => ipcRenderer.invoke('git-merge-conflicts', data),
-  gitIsMerging: (data) => ipcRenderer.invoke('git-is-merging', data),
-  gitShowConflictVersion: (data) => ipcRenderer.invoke('git-show-conflict-version', data),
-  gitResolveConflict: (data) => ipcRenderer.invoke('git-resolve-conflict', data),
-  gitResolveAllConflicts: (data) => ipcRenderer.invoke('git-resolve-all-conflicts', data),
-  gitMergeAbort: (data) => ipcRenderer.invoke('git-merge-abort', data),
-  gitReadFileContent: (data) => ipcRenderer.invoke('git-read-file-content', data),
-  gitShowBaseVersion: (data) => ipcRenderer.invoke('git-show-base-version', data),
-  gitWriteResolvedContent: (data) => ipcRenderer.invoke('git-write-resolved-content', data),
-
-  // Git branch operations
-  gitListBranches: (data) => ipcRenderer.invoke('git-list-branches', data),
-  gitCheckoutBranch: (data) => ipcRenderer.invoke('git-checkout-branch', data),
-  gitCreateBranch: (data) => ipcRenderer.invoke('git-create-branch', data),
-
-  // Git staging operations
-  gitStageFiles: (data) => ipcRenderer.invoke('git-stage-files', data),
-  gitUnstageFiles: (data) => ipcRenderer.invoke('git-unstage-files', data),
-  gitDiscardFiles: (data) => ipcRenderer.invoke('git-discard-files', data),
-  gitCommitStaged: (data) => ipcRenderer.invoke('git-commit-staged', data),
-
-  // Git stash operations
-  gitStash: (data) => ipcRenderer.invoke('git-stash', data),
-  gitStashPop: (data) => ipcRenderer.invoke('git-stash-pop', data),
-
-  // Git diff operations
-  gitDiffFile: (data) => ipcRenderer.invoke('git-diff-file', data),
-
-  // Storage file change events (fired when file changes externally, e.g. after git pull)
+  // Storage file change events (fired when file changes externally)
   onStorageFileChanged: (callback) => {
     const listener = (_, data) => callback(data);
     ipcRenderer.on('storage-file-changed', listener);

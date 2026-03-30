@@ -1,7 +1,7 @@
 ﻿import { create } from 'zustand';
 import { Workspace, WorkspacesConfig, WorkspaceExport } from '../types';
 import { rehydrateWorkspace } from './appStore';
-import { registerGitSyncProvider, registerActiveWorkspaceIdProvider } from './persistence';
+import { registerActiveWorkspaceIdProvider } from './persistence';
 
 interface WorkspacesStore {
   workspaces: Workspace[];
@@ -22,7 +22,7 @@ interface WorkspacesStore {
   switchWorkspace: (id: string) => Promise<void>;
 
   // Update workspace name / directories
-  updateWorkspace: (id: string, updates: Partial<Pick<Workspace, 'name' | 'homeDirectory' | 'secretsDirectory' | 'gitAutoSync'>>) => Promise<void>;
+  updateWorkspace: (id: string, updates: Partial<Pick<Workspace, 'name' | 'homeDirectory' | 'secretsDirectory'>>) => Promise<void>;
 
   // Export workspace data as a JSON file (Electron only)
   exportWorkspace: (id: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
@@ -249,14 +249,6 @@ export const useWorkspacesStore = create<WorkspacesStore>()((set, get) => ({
     return workspaces.find((w) => w.id === activeWorkspaceId) ?? null;
   },
 }));
-
-// Register the git sync provider callback (#31 — breaks circular require)
-registerGitSyncProvider(() => {
-  const state = useWorkspacesStore.getState();
-  const active = state.workspaces.find((w) => w.id === state.activeWorkspaceId);
-  if (!active?.gitAutoSync || !active.homeDirectory) return null;
-  return { gitAutoSync: active.gitAutoSync, homeDirectory: active.homeDirectory };
-});
 
 // Register the active workspace ID provider for browser-mode storage isolation.
 // Gives persistence.ts a workspace-scoped localStorage key for each workspace.

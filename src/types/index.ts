@@ -153,7 +153,6 @@ export interface Workspace {
   homeDirectory: string;
   secretsDirectory: string;
   createdAt: number;
-  gitAutoSync?: boolean;
 }
 
 export interface WorkspacesConfig {
@@ -399,95 +398,6 @@ export interface SecretsStorage {
   secrets: Record<string, string>;
 }
 
-// Git types
-export interface GitCommitInfo {
-  hash: string;
-  message: string;
-  author: string;
-  date: string;
-}
-
-/** Structured representation of a single file change from git status --porcelain */
-export interface GitFileChange {
-  /** File path (for renames/copies, this is the new/destination path) */
-  path: string;
-  /** Original path before rename/copy (only set for R/C status) */
-  origPath?: string;
-  /** Index (staged) status character: M, A, D, R, C, ?, ! or space */
-  indexStatus: string;
-  /** Work-tree (unstaged) status character: M, D, ? or space */
-  workTreeStatus: string;
-}
-
-export interface GitStatusResult {
-  success: boolean;
-  isRepo?: boolean;
-  branch?: string;
-  changes?: string[];
-  changesDetailed?: GitFileChange[];
-  remoteUrl?: string;
-  lastCommit?: GitCommitInfo | null;
-  ahead?: number;
-  behind?: number;
-  hasChanges?: boolean;
-  error?: string;
-}
-
-export interface GitCheckResult {
-  available: boolean;
-  version: string;
-}
-
-export interface GitOperationResult {
-  success: boolean;
-  output?: string;
-  error?: string;
-  /** Set on pull failure when a merge conflict is detected */
-  mergeConflict?: boolean;
-}
-
-export interface GitLogResult {
-  success: boolean;
-  commits?: GitCommitInfo[];
-  error?: string;
-}
-
-export interface GitRemoteResult {
-  success: boolean;
-  url?: string;
-  error?: string;
-}
-
-export interface GitMergeConflictsResult {
-  success: boolean;
-  files: string[];
-  error?: string;
-}
-
-export interface GitConflictVersionResult {
-  success: boolean;
-  content: string;
-  error?: string;
-}
-
-export interface GitIsMergingResult {
-  merging: boolean;
-}
-
-export interface GitBranchInfo {
-  name: string;
-  hash: string;
-  current: boolean;
-  remote: boolean;
-}
-
-export interface GitListBranchesResult {
-  success: boolean;
-  local: GitBranchInfo[];
-  remote: GitBranchInfo[];
-  error?: string;
-}
-
 // Electron API type definition
 export interface ElectronAPI {
   httpRequest: (data: {
@@ -549,47 +459,9 @@ export interface ElectronAPI {
     secretsDirectory: string;
     exportData: WorkspaceExport;
   }) => Promise<{ success: boolean; workspace?: Workspace; error?: string }>;
-  // Git operations
-  gitCheck: () => Promise<GitCheckResult>;
-  gitStatus: (data: { directory: string }) => Promise<GitStatusResult>;
-  gitInit: (data: { directory: string }) => Promise<GitOperationResult>;
-  gitClone: (data: { url: string; directory: string }) => Promise<GitOperationResult>;
-  gitPull: (data: { directory: string }) => Promise<GitOperationResult>;
-  gitPush: (data: { directory: string }) => Promise<GitOperationResult>;
-  gitAddCommit: (data: { directory: string; message?: string }) => Promise<GitOperationResult>;
-  gitAddCommitPush: (data: { directory: string; message?: string }) => Promise<GitOperationResult>;
-  gitLog: (data: { directory: string; count?: number }) => Promise<GitLogResult>;
-  gitRemoteGet: (data: { directory: string }) => Promise<GitRemoteResult>;
-  gitRemoteSet: (data: { directory: string; url: string }) => Promise<GitOperationResult>;
-  gitFetch: (data: { directory: string }) => Promise<GitOperationResult>;
-  gitMergeConflicts: (data: { directory: string }) => Promise<GitMergeConflictsResult>;
-  gitIsMerging: (data: { directory: string }) => Promise<GitIsMergingResult>;
-  gitShowConflictVersion: (data: { directory: string; filepath: string; version: 'ours' | 'theirs' }) => Promise<GitConflictVersionResult>;
-  gitResolveConflict: (data: { directory: string; filepath: string; content: string }) => Promise<GitOperationResult>;
-  gitResolveAllConflicts: (data: { directory: string; strategy: 'ours' | 'theirs' }) => Promise<GitOperationResult>;
-  gitMergeAbort: (data: { directory: string }) => Promise<GitOperationResult>;
-  gitReadFileContent: (data: { directory: string; filepath: string }) => Promise<GitConflictVersionResult>;
-  gitShowBaseVersion: (data: { directory: string; filepath: string }) => Promise<GitConflictVersionResult>;
-  gitWriteResolvedContent: (data: { directory: string; filepath: string; content: string }) => Promise<GitOperationResult>;
-  // Git branch operations
-  gitListBranches: (data: { directory: string }) => Promise<GitListBranchesResult>;
-  gitCheckoutBranch: (data: { directory: string; branch: string }) => Promise<GitOperationResult>;
-  gitCreateBranch: (data: { directory: string; branch: string; checkout?: boolean }) => Promise<GitOperationResult>;
-  // Git staging operations
-  gitStageFiles: (data: { directory: string; files: string[] }) => Promise<GitOperationResult>;
-  gitUnstageFiles: (data: { directory: string; files: string[] }) => Promise<GitOperationResult>;
-  gitDiscardFiles: (data: { directory: string; files: string[] }) => Promise<GitOperationResult>;
-  gitCommitStaged: (data: { directory: string; message?: string }) => Promise<GitOperationResult>;
-  // Git stash operations
-  gitStash: (data: { directory: string }) => Promise<GitOperationResult>;
-  gitStashPop: (data: { directory: string }) => Promise<GitOperationResult>;
-  // Git diff operations
-  gitDiffFile: (data: { directory: string; filepath: string; staged?: boolean }) => Promise<{ success: boolean; diff: string; error?: string }>;
   // Storage file change events
   onStorageFileChanged: (callback: () => void) => (() => void);
   offStorageFileChanged?: (listener: () => void) => void;
-  // Pull availability check
-  gitCheckPullAvailable: (data: { directory: string }) => Promise<{ isRepo: boolean; hasPull: boolean; count: number; noRemote?: boolean; error?: string }>;
 }
 
 // Extend Window interface globally

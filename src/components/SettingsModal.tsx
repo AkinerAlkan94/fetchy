@@ -1,28 +1,25 @@
 import { useState } from 'react';
-import { X, Layers, Bot, Eye, EyeOff, Check, Loader2, AlertCircle, ShieldAlert, Info, GitBranch } from 'lucide-react';
+import { X, Layers, Bot, Eye, EyeOff, Check, Loader2, AlertCircle, ShieldAlert, Info } from 'lucide-react';
 import { usePreferencesStore } from '../store/preferencesStore';
 import { useAppStore } from '../store/appStore';
 import { useWorkspacesStore } from '../store/workspacesStore';
 import { PROVIDER_META, sendAIRequest } from '../utils/aiProvider';
-import GitSettingsTab from './GitSettingsTab';
 import type { AIProvider, AISettings } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenWorkspaces: () => void;
-  onOpenConflictResolver?: () => void;
-  initialTab?: 'general' | 'ai' | 'git';
+  initialTab?: 'general' | 'ai';
 }
 
-export default function SettingsModal({ isOpen, onClose, onOpenWorkspaces, onOpenConflictResolver, initialTab }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, onOpenWorkspaces, initialTab }: SettingsModalProps) {
   const { preferences, savePreferences, aiSettings: ai, updateAISettings } = usePreferencesStore();
   const { panelLayout, setPanelLayout } = useAppStore();
   const { workspaces, activeWorkspaceId } = useWorkspacesStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) ?? null;
-  const { updateWorkspace } = useWorkspacesStore();
 
-  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'git'>(initialTab ?? 'general');
+  const [activeTab, setActiveTab] = useState<'general' | 'ai'>(initialTab ?? 'general');
   const [showApiKey, setShowApiKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
@@ -75,7 +72,6 @@ export default function SettingsModal({ isOpen, onClose, onOpenWorkspaces, onOpe
         <div className='flex border-b border-[#2d2d44]'>
           <button onClick={() => setActiveTab('general')} className={`px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'general' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-white'}`}>General</button>
           <button onClick={() => setActiveTab('ai')} className={`px-4 py-2.5 text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'ai' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-white'}`}><Bot size={14} />AI Assistant</button>
-          <button onClick={() => setActiveTab('git')} className={`px-4 py-2.5 text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'git' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-white'}`}><GitBranch size={14} />Git</button>
         </div>
         <div className='p-6 space-y-6 overflow-y-auto max-h-[calc(80vh-160px)]'>
           {activeTab === 'general' ? (
@@ -371,12 +367,6 @@ export default function SettingsModal({ isOpen, onClose, onOpenWorkspaces, onOpe
                 </div>
               </div>
             </div>
-          ) : activeTab === 'git' ? (
-            <GitSettingsTab
-              workspace={activeWorkspace}
-              onWorkspaceUpdate={(id, updates) => updateWorkspace(id, updates)}
-              onOpenConflictResolver={onOpenConflictResolver}
-            />
           ) : null}
         </div>
         <div className='flex justify-end gap-2 p-4 border-t border-[#2d2d44]'>

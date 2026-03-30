@@ -85,7 +85,7 @@
 - [x] **#13 · Decompose `electron/main.js`** `Maintainability` `Medium`
   > 1,169 lines mixing 7+ concerns in plain JS
   >
-  > **Action:** Split into `ipc/` modules (`fileHandlers`, `httpHandler`, `aiHandler`, `gitHandler`, `secretsHandler`, `workspaceHandler`); migrate to TypeScript
+  > **Action:** Split into `ipc/` modules (`fileHandlers`, `httpHandler`, `aiHandler`, `secretsHandler`, `workspaceHandler`); migrate to TypeScript
 
 - [x] **#14 · Replace `window.location.reload()`** `Reliability` `Medium`
   > Workspace switching discards unsaved state and is untestable
@@ -111,11 +111,6 @@
   > Auth sanitization only covers 2 levels; secrets leak in deeper folders
   >
   > **Action:** Use a recursive sanitizer that walks the entire folder tree
-
-- [x] **#19 · Fix git log delimiter** `Func. Stability` `Low`
-  > `|` in commit messages corrupts parsed hash/message/author/date fields
-  >
-  > **Action:** Use `--format=%x00%H%x00%s%x00%an%x00%ai` with null-byte delimiter (impossible in commit messages)
 
 - [x] **#20 · Add IPC input validation** `Security` `Medium`
   > All `ipcMain.handle` callbacks trust renderer-supplied parameters
@@ -181,7 +176,7 @@
 - [x] **#31 · Eliminate circular `require()`** `Maintainability` `Low`
   > `persistence.ts` dynamically requires `workspacesStore`
   >
-  > **Action:** Break the cycle by having `persistence.ts` accept a callback or use an event emitter for git auto-sync, rather than reading another store
+  > **Action:** Break the cycle by removing the dynamic `require()` call and any cross-store dependencies
 
 ---
 
@@ -198,7 +193,7 @@
                   ├────────────────────┼────────────────────┼────────────────────┤
                   │                    │                    │                    │
   High Impact     │  #15 #16 #17 #18   │  #13 #14 #20       │  #21 #22 #26       │
-                  │  #19               │                    │                    │
+                  │                    │                    │                    │
                   │                    │                    │                    │
                   ├────────────────────┼────────────────────┼────────────────────┤
                   │                    │                    │                    │
@@ -208,4 +203,4 @@
                   └────────────────────┴────────────────────┴────────────────────┘
 ```
 
-> **Quick wins** (low effort + critical/high impact): Items **#2, #3, #4, #5, #6, #7, #9, #11, #12, #15, #16, #17, #18, #19** — these 14 items address vulnerabilities across all 5 ASRs with individually small changes. Targeting these first delivers the highest ROI.
+> **Quick wins** (low effort + critical/high impact): Items **#2, #3, #4, #5, #6, #7, #9, #11, #12, #15, #16, #17, #18** — these 13 items address vulnerabilities across all 5 ASRs with individually small changes. Targeting these first delivers the highest ROI.
