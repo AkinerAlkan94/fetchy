@@ -1,7 +1,7 @@
 ﻿import { create } from 'zustand';
 import { Workspace, WorkspacesConfig, WorkspaceExport } from '../types';
 import { rehydrateWorkspace } from './appStore';
-import { registerActiveWorkspaceIdProvider } from './persistence';
+import { registerActiveWorkspaceIdProvider, suppressPersistence, cancelPendingPersistence } from './persistence';
 
 interface WorkspacesStore {
   workspaces: Workspace[];
@@ -102,6 +102,13 @@ export const useWorkspacesStore = create<WorkspacesStore>()((set, get) => ({
       activeWorkspaceId: newActiveId,
     };
 
+    // Suppress app-store persistence writes before the IPC call that switches
+    // the active directory.  This prevents any pending debounced write from
+    // flushing stale/empty state to the new workspace's home directory.
+    // The flag is cleared later by rehydrateWorkspace().
+    suppressPersistence(true);
+    cancelPendingPersistence();
+
     if (isElectron && window.electronAPI) {
       await window.electronAPI.saveWorkspaces(config);
     } else {
@@ -126,6 +133,13 @@ export const useWorkspacesStore = create<WorkspacesStore>()((set, get) => ({
       activeWorkspaceId: newActiveId,
     };
 
+    // If the active workspace is being removed, suppress writes before the
+    // directory switch so stale state is not flushed to the next workspace.
+    if (activeWorkspaceId === id) {
+      suppressPersistence(true);
+      cancelPendingPersistence();
+    }
+
     if (isElectron && window.electronAPI) {
       await window.electronAPI.saveWorkspaces(config);
     } else {
@@ -146,6 +160,10 @@ export const useWorkspacesStore = create<WorkspacesStore>()((set, get) => ({
 
     const config: WorkspacesConfig = { workspaces, activeWorkspaceId: id };
 
+    // Suppress writes before the directory switch
+    suppressPersistence(true);
+    cancelPendingPersistence();
+
     if (isElectron && window.electronAPI) {
       await window.electronAPI.saveWorkspaces(config);
     } else {
@@ -165,6 +183,14 @@ export const useWorkspacesStore = create<WorkspacesStore>()((set, get) => ({
     );
     const config: WorkspacesConfig = { workspaces: newWorkspaces, activeWorkspaceId };
 
+    // If the active workspace's directories are changing, suppress writes
+    // before the switch so stale data isn't flushed to the new paths.
+    const dirChanging = id === activeWorkspaceId && (updates.homeDirectory || updates.secretsDirectory);
+    if (dirChanging) {
+      suppressPersistence(true);
+      cancelPendingPersistence();
+    }
+
     if (isElectron && window.electronAPI) {
       await window.electronAPI.saveWorkspaces(config);
     } else {
@@ -174,7 +200,7 @@ export const useWorkspacesStore = create<WorkspacesStore>()((set, get) => ({
     set({ workspaces: newWorkspaces });
 
     // If the active workspace's directories changed, rehydrate from new paths
-    if (id === activeWorkspaceId && (updates.homeDirectory || updates.secretsDirectory)) {
+    if (dirChanging) {
       setTimeout(() => rehydrateWorkspace(), 300);
     }
   },

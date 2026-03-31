@@ -12,20 +12,83 @@ import { migrateState } from './dataMigration';
 
 const DEBOUNCE_MS = 1_500;
 
+// ---------------------------------------------------------------------------
+// Write suppression (#workspace-safety)
+// ---------------------------------------------------------------------------
+// During workspace creation / switching the active workspace directory changes
+// on the main process BEFORE the renderer has rehydrated from the new
+// directory.  Any debounced write that fires in between would flush the old
+// (or empty-default) state to the *new* directory, deleting existing data.
+//
+// `suppressPersistence(true)` blocks all debounced writes.  It is set before
+// the IPC call that switches directories and cleared in rehydrateWorkspace()
+// after the correct state has been loaded.
+// ---------------------------------------------------------------------------
+
+let _skipPersistence = false;
+let _suppressTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Enable or disable persistence write suppression.
+ * While suppressed, debounced writes are silently dropped.
+ */
+export function suppressPersistence(skip: boolean) {
+  _skipPersistence = skip;
+  if (_suppressTimeout) {
+    clearTimeout(_suppressTimeout);
+    _suppressTimeout = null;
+  }
+  if (skip) {
+    // Safety net: auto-clear after 15 s if rehydrateWorkspace never completes
+    _suppressTimeout = setTimeout(() => {
+      _skipPersistence = false;
+      _suppressTimeout = null;
+    }, 15_000);
+  }
+}
+
+let _cancelPendingDebounce: (() => void) | null = null;
+
+/**
+ * Cancel any pending debounced persistence write.
+ * Called before switching the active workspace directory so that a queued
+ * write from the previous workspace cannot land in the new directory.
+ */
+export function cancelPendingPersistence() {
+  _cancelPendingDebounce?.();
+}
+
 export function createDebouncedStorage(inner: StateStorage): StateStorage {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let latestValue: string | null = null;
   let latestName: string | null = null;
 
+  _cancelPendingDebounce = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    latestValue = null;
+    latestName = null;
+  };
+
   return {
     getItem: (name: string) => inner.getItem(name),
 
     setItem: (name: string, value: string) => {
+      // Block writes while workspace is being created / switched
+      if (_skipPersistence) return;
+
       latestName = name;
       latestValue = value;
 
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+        // Re-check: flag may have been set while the timer was pending
+        if (_skipPersistence) {
+          timer = null;
+          latestValue = null;
+          latestName = null;
+          return;
+        }
         if (latestName !== null && latestValue !== null) {
           inner.setItem(latestName, latestValue);
         }

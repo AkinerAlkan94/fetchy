@@ -15,7 +15,7 @@ import {
   RequestHistoryItem,
   OpenAPIDocument,
 } from '../types';
-import { AppStorageExport, createCustomStorage, createDebouncedStorage, invalidateWriteCache } from './persistence';
+import { AppStorageExport, createCustomStorage, createDebouncedStorage, invalidateWriteCache, suppressPersistence, cancelPendingPersistence } from './persistence';
 import { migrateExport, CURRENT_SCHEMA_VERSION } from './dataMigration';
 import {
   createDefaultRequest,
@@ -1265,41 +1265,56 @@ export const useAppStore = create<AppStore>()(
  * for workspace switching — no full page reload required.
  *
  * Steps:
+ * 0. Suppress persistence writes & cancel any pending debounced write so that
+ *    stale / empty data is never flushed to the new workspace directory.
  * 1. Invalidate the debounced-write cache so stale data isn't flushed.
  * 2. Reset ALL state (tabs, persisted data) to empty defaults so that if the
  *    new workspace directory is empty (storage returns null), data from the
  *    previous workspace is not carried over.
  * 3. Call `persist.rehydrate()` which re-reads from the current storage
  *    backend (Electron IPC → new workspace directory, or localStorage).
+ * 4. Re-enable persistence once the correct state is loaded.
  */
 export async function rehydrateWorkspace(): Promise<void> {
-  // 1. Prevent any queued debounced writes from overwriting the new workspace
-  invalidateWriteCache();
+  // 0. Block all debounced writes during the transition so existing files
+  //    in the target directory are never overwritten with stale/empty data.
+  suppressPersistence(true);
+  cancelPendingPersistence();
 
-  // 2. Reset ALL persisted + transient state to clean defaults.
-  //    This is critical: if the new workspace directory is empty, zustand's
-  //    persist.rehydrate() returns null and leaves the old state unchanged.
-  //    By clearing first we guarantee a blank slate for every workspace switch.
-  useAppStore.setState({
-    tabs: [],
-    activeTabId: null,
-    activeRequest: null,
-    collections: [],
-    environments: [],
-    activeEnvironmentId: null,
-    history: [],
-    openApiDocuments: [],
-    sidebarWidth: 280,
-    sidebarCollapsed: false,
-    requestPanelWidth: 50,
-    panelLayout: 'horizontal',
-    _entityIndex: buildEntityIndex([]),
-  });
+  try {
+    // 1. Prevent any queued debounced writes from overwriting the new workspace
+    invalidateWriteCache();
 
-  // 3. Re-read persisted state from the now-active workspace.
-  //    If the workspace has data it will override the defaults above.
-  await useAppStore.persist.rehydrate();
+    // 2. Reset ALL persisted + transient state to clean defaults.
+    //    This is critical: if the new workspace directory is empty, zustand's
+    //    persist.rehydrate() returns null and leaves the old state unchanged.
+    //    By clearing first we guarantee a blank slate for every workspace switch.
+    useAppStore.setState({
+      tabs: [],
+      activeTabId: null,
+      activeRequest: null,
+      collections: [],
+      environments: [],
+      activeEnvironmentId: null,
+      history: [],
+      openApiDocuments: [],
+      sidebarWidth: 280,
+      sidebarCollapsed: false,
+      requestPanelWidth: 50,
+      panelLayout: 'horizontal',
+      _entityIndex: buildEntityIndex([]),
+    });
 
-  // 4. Rebuild the entity index from the freshly loaded collections (#26)
-  useAppStore.getState()._rebuildIndex();
+    // 3. Re-read persisted state from the now-active workspace.
+    //    If the workspace has data it will override the defaults above.
+    await useAppStore.persist.rehydrate();
+
+    // 4. Rebuild the entity index from the freshly loaded collections (#26)
+    useAppStore.getState()._rebuildIndex();
+  } finally {
+    // 5. Re-enable persistence. From this point the loaded state matches
+    //    what is on disk, so writeIfChanged will be a no-op until the user
+    //    actually modifies something.
+    suppressPersistence(false);
+  }
 }
