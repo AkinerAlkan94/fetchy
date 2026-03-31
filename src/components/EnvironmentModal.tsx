@@ -286,6 +286,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
   const [newName, setNewName] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [varSearchQuery, setVarSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Drag and drop sensors
@@ -307,6 +308,25 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
     () => (selectedEnv?.variables ?? []).filter((v: any) => v._fromScript),
     [selectedEnv?.variables]
   );
+
+  const filteredUserVariables = useMemo(() => {
+    if (!varSearchQuery) return userVariables;
+    const q = varSearchQuery.toLowerCase();
+    return userVariables.filter(
+      v => v.key.toLowerCase().includes(q) ||
+           (v.initialValue || v.value || '').toLowerCase().includes(q) ||
+           (v.currentValue || '').toLowerCase().includes(q)
+    );
+  }, [userVariables, varSearchQuery]);
+
+  const filteredScriptVariables = useMemo(() => {
+    if (!varSearchQuery) return scriptVariables;
+    const q = varSearchQuery.toLowerCase();
+    return scriptVariables.filter(
+      v => v.key.toLowerCase().includes(q) ||
+           (v.currentValue ?? v.value ?? '').toLowerCase().includes(q)
+    );
+  }, [scriptVariables, varSearchQuery]);
 
   const handleAddEnvironment = () => {
     const env: Environment = { id: uuidv4(), name: 'New Environment', variables: [] };
@@ -579,7 +599,10 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                         isActive={draftActiveEnvId === env.id}
                         isEditing={editingName === env.id}
                         newName={newName}
-                        onSelect={() => setSelectedEnvId(env.id)}
+                        onSelect={() => {
+                          setSelectedEnvId(env.id);
+                          setVarSearchQuery('');
+                        }}
                         onStartEdit={() => {
                           setEditingName(env.id);
                           setNewName(env.name);
@@ -657,6 +680,25 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4">
+                  {/* ── Variable search ── */}
+                  <div className="relative mb-3">
+                    <input
+                      type="text"
+                      value={varSearchQuery}
+                      onChange={(e) => setVarSearchQuery(e.target.value)}
+                      placeholder="Search variables..."
+                      className="w-full bg-fetchy-bg border border-fetchy-border rounded pl-3 pr-7 py-1.5 text-sm outline-none focus:border-fetchy-accent"
+                    />
+                    {varSearchQuery && (
+                      <button
+                        onClick={() => setVarSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-fetchy-text-muted hover:text-fetchy-text"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
                   {/* ── User-defined variables ── */}
                   <DndContext
                     sensors={sensors}
@@ -677,10 +719,10 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                       </thead>
                       <tbody>
                         <SortableContext
-                          items={userVariables.map(v => v.id)}
+                          items={filteredUserVariables.map(v => v.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          {userVariables.map((variable) => (
+                          {filteredUserVariables.map((variable) => (
                             <SortableVariableRow
                               key={variable.id}
                               variable={variable}
@@ -699,8 +741,14 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                     <Plus size={14} /> Add Variable
                   </button>
 
+                  {filteredUserVariables.length === 0 && varSearchQuery && (
+                    <p className="text-center text-fetchy-text-muted text-sm py-4">
+                      No variables matching "{varSearchQuery}"
+                    </p>
+                  )}
+
                   {/* ── Script-created variables (transient) ── */}
-                  {scriptVariables.length > 0 && (
+                  {filteredScriptVariables.length > 0 && (
                     <div className="mt-6">
                       <div className="flex items-center gap-2 mb-2">
                         <Zap size={14} className="text-yellow-400" />
@@ -717,7 +765,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                           </tr>
                         </thead>
                         <tbody>
-                          {scriptVariables.map((variable) => (
+                          {filteredScriptVariables.map((variable) => (
                             <tr key={variable.id} className="border-b border-fetchy-border/50">
                               <td className="p-2">
                                 <Zap size={12} className="text-yellow-400/60" />
