@@ -402,7 +402,7 @@ export default function WorkspacesModal({ isOpen, onClose }: WorkspacesModalProp
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2d2d44] text-gray-300 rounded hover:bg-[#3d3d54] text-sm transition-colors disabled:opacity-50"
                       title="Import workspace from JSON file"
                     >
-                      <Upload size={14} />
+                      <Download size={14} />
                       Import
                     </button>
                   )}
@@ -471,7 +471,7 @@ export default function WorkspacesModal({ isOpen, onClose }: WorkspacesModalProp
                               {exportingId === ws.id ? (
                                 <RefreshCw size={14} className="animate-spin" />
                               ) : (
-                                <Download size={14} />
+                                <Upload size={14} />
                               )}
                             </button>
                           )}

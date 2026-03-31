@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { X, Upload, FileJson, AlertCircle, Check, Globe, FolderOpen, Braces, Terminal } from 'lucide-react';
+import { X, Download, FileJson, AlertCircle, Check, Globe, FolderOpen, Braces, Terminal } from 'lucide-react';
 import { getFirstDroppedFile } from '../utils/fileUtils';
 import { useAppStore } from '../store/appStore';
 import {
@@ -407,12 +407,12 @@ export default function ImportModal({ onClose, initialImportType = 'postman' }: 
                       className="hidden"
                       key={source} // reset input when source changes
                     />
-                    <Upload className="w-8 h-8 text-fetchy-text-muted mx-auto mb-2" />
+                    <Download className="w-8 h-8 text-fetchy-text-muted mx-auto mb-2" />
                     {fileName ? (
                       <p className="text-fetchy-text font-medium text-sm">{fileName}</p>
                     ) : (
                       <>
-                        <p className="text-fetchy-text text-sm mb-1">Click to upload or drag and drop</p>
+                        <p className="text-fetchy-text text-sm mb-1">Click to import or drag and drop</p>
                         <p className="text-xs text-fetchy-text-muted">{currentConfig.sublabel} file</p>
                       </>
                     )}

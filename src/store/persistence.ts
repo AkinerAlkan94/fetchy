@@ -469,7 +469,6 @@ export const createCustomStorage = (): StateStorage => {
 
           // Read split files
           const metaRaw = await api.readData('meta.json');
-          if (!metaRaw && !oldData) return null;
 
           let meta: any = {};
           if (metaRaw) {
@@ -518,6 +517,16 @@ export const createCustomStorage = (): StateStorage => {
 
           // OpenAPI documents
           const openapiFiles: string[] = await api.listDataDir('openapi-docs');
+
+          // If the directory contains no Fetchy data at all, treat it as an
+          // empty workspace (return null so zustand keeps the cleared defaults).
+          const hasAnyData =
+            metaRaw || oldData ||
+            collectionFiles.length > 0 ||
+            envFiles.length > 0 ||
+            historyRaw ||
+            openapiFiles.length > 0;
+          if (!hasAnyData) return null;
           const openApiDocuments: any[] = [];
           for (const file of openapiFiles) {
             const content = await api.readData(`openapi-docs/${file}`);

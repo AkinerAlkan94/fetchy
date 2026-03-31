@@ -135,7 +135,7 @@ function SortableEnvironmentItem({
         }}
         title="Export"
       >
-        <Download size={12} />
+        <Upload size={12} />
       </button>
       <button
         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded text-red-400"
@@ -559,7 +559,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                 onClick={handleImportClick}
                 className="btn btn-secondary w-full flex items-center justify-center gap-2 text-sm"
               >
-                <Upload size={16} /> Import
+                <Download size={16} /> Import
               </button>
             </div>
 
@@ -657,7 +657,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                       className="btn btn-secondary text-sm flex items-center gap-2"
                       title="Export environment"
                     >
-                      <Download size={14} />
+                      <Upload size={14} />
                       Export
                     </button>
                     {draftActiveEnvId === selectedEnv.id ? (

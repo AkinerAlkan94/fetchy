@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Download, FileJson, Check } from 'lucide-react';
+import { X, Upload, FileJson, Check } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { exportToPostman } from '../utils/helpers';
 
@@ -112,7 +112,7 @@ export default function ExportModal({ onClose, collectionId }: ExportModalProps)
             disabled={!selectedCollection}
             className="btn btn-primary disabled:opacity-50 flex items-center gap-2"
           >
-            <Download size={16} /> Export
+            <Upload size={16} /> Export
           </button>
         </div>
       </div>

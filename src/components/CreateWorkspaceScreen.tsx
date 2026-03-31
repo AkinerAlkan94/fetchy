@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, Lock, Layers, RefreshCw, Upload } from 'lucide-react';
+import { FolderOpen, Lock, Layers, RefreshCw, Download } from 'lucide-react';
 import { useWorkspacesStore } from '../store/workspacesStore';
 
 interface CreateWorkspaceScreenProps {
@@ -216,7 +216,7 @@ export default function CreateWorkspaceScreen({ onCreated }: CreateWorkspaceScre
                 disabled={isBusy}
                 className="flex items-center gap-2 px-4 py-2 bg-[#2d2d44] text-gray-300 rounded-lg hover:bg-[#3d3d54] disabled:opacity-50 transition-colors text-sm"
               >
-                <Upload size={14} />
+                <Download size={14} />
                 Import from file
               </button>
             )}

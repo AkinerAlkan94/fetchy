@@ -8,7 +8,7 @@ import {
   Trash2,
   Edit2,
   Copy,
-  Download,
+  Upload,
   Key,
   MoveRight,
   Play,
@@ -141,7 +141,7 @@ export default function SidebarContextMenu({
                 closeContextMenu();
               }}
             >
-              <Download size={14} /> Export to Postman
+              <Upload size={14} /> Export to Postman
             </button>
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-fetchy-border flex items-center gap-2"

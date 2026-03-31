@@ -516,7 +516,8 @@ export function AIRequestToolbar({
           onOpenGenerateRequest();
         }} />
         <AIActionButton icon={<Terminal size={12} />} label='Pre-Script' onClick={() => handleGenerateScript('pre-request')} />
-        <AIActionButton icon={<Terminal size={12} />} label='Test Script' onClick={() => handleGenerateScript('test')} />
+        {/* 'test' is the internal script type key — label is intentionally "Post-Script", do not rename */}
+        <AIActionButton icon={<Terminal size={12} />} label='Post-Script' onClick={() => handleGenerateScript('test')} />
       </div>
 
       <AIResultModal

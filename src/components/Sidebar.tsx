@@ -23,7 +23,7 @@ import {
   Folder,
   Plus,
   Clock,
-  Upload,
+  Download,
   Filter,
   ArrowUpDown,
   X,
@@ -849,7 +849,7 @@ export default function Sidebar({ onImport, onHistoryItemClick }: SidebarProps) 
                     onClick={onImport}
                     className="p-1.5 rounded border border-fetchy-border text-fetchy-text-muted hover:text-fetchy-text hover:bg-fetchy-border"
                   >
-                    <Upload size={14} />
+                    <Download size={14} />
                   </button>
                 </Tooltip>
               </>
