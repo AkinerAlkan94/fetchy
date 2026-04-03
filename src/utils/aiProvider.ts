@@ -238,6 +238,18 @@ Return ONLY the name, nothing else. No quotes, no explanation.`,
 }
 
 export function buildGenerateBugReportPrompt(req: ApiRequest, res: ApiResponse, userNote: string): AIMessage[] {
+  // Format: YYYY-MM-DD HH:MM:SS (user's local timezone)
+  const now = new Date();
+  const reportDate = now.toLocaleString('sv-SE', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
   const fullHeaders = req.headers
     .filter((h) => h.enabled && h.key)
     .map((h) => `${h.key}: ${h.value}`)
@@ -286,7 +298,7 @@ Generate a detailed, well-structured bug report in markdown using EXACTLY this t
 
 ## Environment
 - **Tool:** Fetchy REST Client
-- **Date:** <current date/time>
+- **Date:** ${reportDate}
 
 ## Description
 <2-3 sentence summary of the issue based on the user's note and the actual response>

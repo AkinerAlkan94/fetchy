@@ -37,7 +37,7 @@ const defaultPreferences: AppPreferences = {
 
 export const defaultJiraSettings: JiraSettings = {
   enabled: false,
-  baseUrl: 'https://jira.si.siemens.cloud',
+  baseUrl: '',
   projectKey: '',
   issueType: 'Bug',
   fieldMappings: [],

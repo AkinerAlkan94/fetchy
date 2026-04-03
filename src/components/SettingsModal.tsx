@@ -554,12 +554,16 @@ export default function SettingsModal({ isOpen, onClose, onOpenWorkspaces, initi
 
               <div className='border-t border-[#2d2d44]' />
 
-              {/* Base URL (hardcoded) */}
+              {/* Base URL */}
               <div className='space-y-1.5'>
                 <label className='text-sm text-gray-300 font-medium'>Jira Base URL</label>
-                <div className='w-full px-3 py-2 bg-[#0a0a14] border border-[#2d2d44] rounded text-gray-400 text-sm font-mono'>
-                  {jiraSettings.baseUrl || 'https://jira.si.siemens.cloud'}
-                </div>
+                <input
+                  type='text'
+                  value={jiraSettings.baseUrl}
+                  onChange={(e) => updateJiraSettings({ baseUrl: e.target.value })}
+                  placeholder='https://your-jira-instance.atlassian.net'
+                  className='w-full px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm focus:outline-none focus:border-purple-500 font-mono'
+                />
               </div>
 
               {/* PAT */}
