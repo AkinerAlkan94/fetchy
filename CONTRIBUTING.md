@@ -6,6 +6,7 @@ Thank you for your interest in contributing to **Fetchy** — a privacy-focused,
 
 ## Table of Contents
 
+- [AI-Driven Development](#ai-driven-development)
 - [Demands / Feature Requests](#demands--feature-requests)
 - [Bug Reports](#bug-reports)
 - [Contributing Code](#contributing-code)
@@ -13,6 +14,20 @@ Thank you for your interest in contributing to **Fetchy** — a privacy-focused,
 - [Branching Strategy](#branching-strategy)
 - [Branch Naming Conventions](#branch-naming-conventions)
 - [Pull Requests](#pull-requests)
+
+---
+
+## AI-Driven Development
+
+> **Important:** Contributors are not expected to write code manually.
+
+Fetchy is an **AI-native project**. All contributors are expected to leverage AI coding agents throughout the entire development lifecycle — from planning and implementation to testing and documentation.
+
+- Use AI agents such as **GitHub Copilot Agent**, **Copilot Edits**, or equivalent agentic tools for all development work.
+- Let the AI agent handle code generation, refactoring, test writing, and documentation updates.
+- Your role as a contributor is to **guide, review, and validate** the agent's output rather than write code by hand.
+- Pull requests written entirely without AI assistance are not the expected workflow and may receive feedback asking you to adopt agentic tooling.
+- If you are new to AI-assisted development, the [GitHub Copilot documentation](https://docs.github.com/en/copilot) is a good starting point.
 
 ---
 
