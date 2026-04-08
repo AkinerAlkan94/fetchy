@@ -9,6 +9,7 @@ Thank you for your interest in contributing to **Fetchy** — a privacy-focused,
 - [Demands / Feature Requests](#demands--feature-requests)
 - [Bug Reports](#bug-reports)
 - [Contributing Code](#contributing-code)
+- [Feature Branch Requirements](#feature-branch-requirements)
 - [Branching Strategy](#branching-strategy)
 - [Branch Naming Conventions](#branch-naming-conventions)
 - [Pull Requests](#pull-requests)
@@ -89,6 +90,18 @@ Fetchy welcomes code contributions for new features, bug fixes, and improvements
 - On GitHub, navigate to the repository and click **Compare & pull request**.
 - Fill in the pull request template: describe the change, reference the related issue (e.g. `Closes #42`), and note any testing done.
 - Request a review from a maintainer.
+
+---
+
+## Feature Branch Requirements
+
+Every `feat/` branch must satisfy **all three of the following** before a pull request can be merged:
+
+- **Implementation** — The feature must be fully implemented and working. Keep the code focused on the scope of the feature and avoid bundling unrelated changes.
+- **Tests** — New functionality must be covered by appropriate unit or integration tests. Existing tests must continue to pass (`npm test`).
+- **Documentation** — User-facing features must include a corresponding documentation update in the `docs/` directory. If the feature changes an existing behaviour, the relevant documentation pages must be updated accordingly. Pull requests that introduce a new feature without documentation will not be merged.
+
+> **In short:** code + tests + docs — all three, every time.
 
 ---
 
