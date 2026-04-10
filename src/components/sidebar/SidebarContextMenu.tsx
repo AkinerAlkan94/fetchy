@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   FilePlus,
   FolderPlus,
@@ -66,6 +67,13 @@ export default function SidebarContextMenu({
     reorderRequests,
     openTab,
   } = useAppStore();
+
+  const [pendingDelete, setPendingDelete] = useState<{
+    type: 'collection' | 'folder';
+    collectionId: string;
+    folderId?: string;
+    name: string;
+  } | null>(null);
 
   const handleExportCollection = (collectionId: string) => {
     const collection = collections.find(c => c.id === collectionId);
@@ -169,8 +177,8 @@ export default function SidebarContextMenu({
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-fetchy-border flex items-center gap-2 text-red-400"
               onClick={() => {
-                deleteCollection(contextMenu.collectionId);
-                closeContextMenu();
+                const name = collections.find(c => c.id === contextMenu.collectionId)?.name || 'this collection';
+                setPendingDelete({ type: 'collection', collectionId: contextMenu.collectionId, name });
               }}
             >
               <Trash2 size={14} /> Delete
@@ -263,8 +271,10 @@ export default function SidebarContextMenu({
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-fetchy-border flex items-center gap-2 text-red-400"
               onClick={() => {
-                deleteFolder(contextMenu.collectionId, contextMenu.folderId!);
-                closeContextMenu();
+                const collection = collections.find(c => c.id === contextMenu.collectionId);
+                const folder = collection ? findFolderById(collection.folders, contextMenu.folderId!) : null;
+                const name = folder?.name || 'this folder';
+                setPendingDelete({ type: 'folder', collectionId: contextMenu.collectionId, folderId: contextMenu.folderId!, name });
               }}
             >
               <Trash2 size={14} /> Delete
@@ -412,6 +422,42 @@ export default function SidebarContextMenu({
           );
         })()}
       </div>
+
+      {/* Delete confirmation dialog */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <div className="bg-fetchy-modal border border-fetchy-border rounded-lg shadow-2xl p-6 mx-4 max-w-sm w-full">
+            <h3 className="text-base font-semibold text-fetchy-text mb-2">
+              Delete {pendingDelete.type === 'collection' ? 'Collection' : 'Folder'}?
+            </h3>
+            <p className="text-sm text-fetchy-text-muted mb-5">
+              Are you sure you want to delete <span className="font-medium text-fetchy-text">"{pendingDelete.name}"</span>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingDelete.type === 'collection') {
+                    deleteCollection(pendingDelete.collectionId);
+                  } else {
+                    deleteFolder(pendingDelete.collectionId, pendingDelete.folderId!);
+                  }
+                  setPendingDelete(null);
+                  closeContextMenu();
+                }}
+                className="btn bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

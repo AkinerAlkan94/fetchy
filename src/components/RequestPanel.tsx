@@ -553,14 +553,14 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
       {/* Section tabs with Save button */}
       <div className="flex items-center border-b border-fetchy-border shrink-0">
         <div className="flex flex-1">
-          {([
+          {([ 
             { id: 'params', label: 'Params', count: request.params.filter(p => p.enabled).length },
             { id: 'headers', label: 'Headers', count: request.headers.filter(h => h.enabled).length },
             { id: 'body', label: 'Body', hasContent: request.body.type !== 'none' },
             { id: 'auth', label: 'Auth' },
             { id: 'preScript', label: 'Pre-Script' },
             { id: 'script', label: 'Post-Script' },
-          ]).map((section) => (
+          ] as Array<{ id: string; label: string; count?: number; hasContent?: boolean; status?: string }>).map((section) => (
             <button
               key={section.id}
               onClick={() => setActiveSection(section.id as any)}
