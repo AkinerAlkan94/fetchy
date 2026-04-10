@@ -287,6 +287,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [varSearchQuery, setVarSearchQuery] = useState('');
+  const [deleteConfirmEnvId, setDeleteConfirmEnvId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Drag and drop sensors
@@ -613,13 +614,7 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
                         onDuplicate={() => handleDuplicateEnvironment(env.id)}
                         onExport={() => handleExportEnvironment(env)}
                         onDelete={() => {
-                          setDraftEnvironments(prev => prev.filter(e => e.id !== env.id));
-                          if (selectedEnvId === env.id) {
-                            setSelectedEnvId(draftEnvironments[0]?.id || null);
-                          }
-                          if (draftActiveEnvId === env.id) {
-                            setDraftActiveEnvId(null);
-                          }
+                          setDeleteConfirmEnvId(env.id);
                         }}
                       />
                     ))}
@@ -903,6 +898,44 @@ export default function EnvironmentModal({ onClose }: EnvironmentModalProps) {
             </div>
           </div>
         )}
+
+        {/* Delete environment confirmation dialog */}
+        {deleteConfirmEnvId && (() => {
+          const envToDelete = draftEnvironments.find(e => e.id === deleteConfirmEnvId);
+          return (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 rounded-lg">
+              <div className="bg-fetchy-modal border border-fetchy-border rounded-lg shadow-2xl p-6 mx-4 max-w-sm w-full">
+                <h3 className="text-base font-semibold text-fetchy-text mb-2">Delete Environment?</h3>
+                <p className="text-sm text-fetchy-text-muted mb-5">
+                  Are you sure you want to delete <span className="font-medium text-fetchy-text">"{envToDelete?.name}"</span>? This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setDeleteConfirmEnvId(null)}
+                    className="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDraftEnvironments(prev => prev.filter(e => e.id !== deleteConfirmEnvId));
+                      if (selectedEnvId === deleteConfirmEnvId) {
+                        setSelectedEnvId(draftEnvironments.find(e => e.id !== deleteConfirmEnvId)?.id || null);
+                      }
+                      if (draftActiveEnvId === deleteConfirmEnvId) {
+                        setDraftActiveEnvId(null);
+                      }
+                      setDeleteConfirmEnvId(null);
+                    }}
+                    className="btn bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
