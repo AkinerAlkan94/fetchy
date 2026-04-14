@@ -2,8 +2,7 @@
  * IPC handler for AI provider requests.
  * Handles: ai-request
  *
- * Supports: OpenAI, Claude/Anthropic, Google Gemini, Ollama, and custom
- * OpenAI-compatible providers.
+ * Supports: Google Gemini, Ollama, and Siemens AI (siemens.io).
  *
  * @module electron/ipc/aiHandler
  */
@@ -19,42 +18,6 @@ const { requireOneOf, requireArray, optionalString, requireObject } = require('.
  */
 function buildAIRequest(provider, apiKey, model, baseUrl, messages, temperature, maxTokens) {
   switch (provider) {
-    case 'openai': {
-      return {
-        url: 'https://api.openai.com/v1/chat/completions',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model || 'gpt-4o-mini',
-          messages,
-          temperature: temperature ?? 0.7,
-          max_tokens: maxTokens ?? 2048,
-        }),
-      };
-    }
-    case 'claude': {
-      // Anthropic uses a separate system field and x-api-key header
-      const systemMsg = messages.find((m) => m.role === 'system');
-      const nonSystemMsgs = messages.filter((m) => m.role !== 'system');
-      const body = {
-        model: model || 'claude-sonnet-4-20250514',
-        messages: nonSystemMsgs,
-        max_tokens: maxTokens ?? 2048,
-        temperature: temperature ?? 0.7,
-      };
-      if (systemMsg) body.system = systemMsg.content;
-      return {
-        url: 'https://api.anthropic.com/v1/messages',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(body),
-      };
-    }
     case 'gemini': {
       // Google Gemini uses contents/parts structure
       const contents = messages
@@ -74,7 +37,7 @@ function buildAIRequest(provider, apiKey, model, baseUrl, messages, temperature,
       if (systemInstruction) {
         geminiBody.systemInstruction = { parts: [{ text: systemInstruction.content }] };
       }
-      const geminiModel = model || 'gemini-2.0-flash';
+      const geminiModel = model || 'gemini-2.5-flash';
       return {
         url: `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
         headers: {
@@ -91,26 +54,26 @@ function buildAIRequest(provider, apiKey, model, baseUrl, messages, temperature,
         url: `${ollamaBase}/v1/chat/completions`,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: model || 'llama3',
+          model: model || 'llama3.1',
           messages,
           temperature: temperature ?? 0.7,
           max_tokens: maxTokens ?? 2048,
         }),
       };
     }
-    case 'custom': {
-      // Custom provider uses OpenAI-compatible format
-      if (!baseUrl) throw new Error('Custom provider requires a base URL');
-      const customHeaders = { 'Content-Type': 'application/json' };
-      if (apiKey) customHeaders['Authorization'] = `Bearer ${apiKey}`;
+    case 'siemens': {
+      // Siemens LLM API – OpenAI-compatible endpoint at api.siemens.com
+      // Auth uses a SIAK prefixed Bearer token
       return {
-        url: baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/v1/chat/completions`,
-        headers: customHeaders,
+        url: 'https://api.siemens.com/llm/v1/chat/completions',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
         body: JSON.stringify({
-          model: model || 'default',
+          model: model || 'mistral-7b-instruct',
           messages,
-          temperature: temperature ?? 0.7,
-          max_tokens: maxTokens ?? 2048,
         }),
       };
     }
@@ -126,21 +89,6 @@ function parseAIResponse(provider, responseBody) {
   try {
     const data = JSON.parse(responseBody);
 
-    if (provider === 'claude') {
-      // Anthropic response format
-      const content = data.content?.[0]?.text || '';
-      return {
-        success: true,
-        content,
-        usage: data.usage
-          ? {
-              promptTokens: data.usage.input_tokens || 0,
-              completionTokens: data.usage.output_tokens || 0,
-              totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
-            }
-          : undefined,
-      };
-    }
     if (provider === 'gemini') {
       // Gemini response format
       const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -156,7 +104,7 @@ function parseAIResponse(provider, responseBody) {
           : undefined,
       };
     }
-    // OpenAI-compatible format (openai, ollama, custom)
+    // OpenAI-compatible format (ollama, siemens)
     const content = data.choices?.[0]?.message?.content || '';
     return {
       success: true,
@@ -186,7 +134,7 @@ function register(ipcMain, _deps) {
       try {
         // Validate inputs
         requireObject(data, 'ai request data');
-        const provider = requireOneOf(data.provider, 'provider', ['openai', 'claude', 'gemini', 'ollama', 'custom']);
+        const provider = requireOneOf(data.provider, 'provider', ['gemini', 'ollama', 'siemens']);
         const apiKey = optionalString(data.apiKey, 'apiKey', 10_000);
         const model = optionalString(data.model, 'model', 500);
         const baseUrl = optionalString(data.baseUrl, 'baseUrl', 2000);

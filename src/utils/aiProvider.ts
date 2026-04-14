@@ -17,10 +17,10 @@ import type {
 
 export const defaultAISettings: AISettings = {
   enabled: true,
-  provider: 'openai',
+  provider: 'ollama',
   apiKey: '',
-  model: '',
-  baseUrl: '',
+  model: 'llama3.1',
+  baseUrl: 'http://localhost:11434',
   temperature: 0.7,
   maxTokens: 2048,
   persistToFile: false,
@@ -39,47 +39,37 @@ export interface ProviderMeta {
 }
 
 export const PROVIDER_META: Record<AIProvider, ProviderMeta> = {
-  openai: {
-    label: 'OpenAI',
-    description: 'GPT-4o, GPT-4o-mini and other OpenAI models',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3-mini'],
-    defaultModel: 'gpt-4o-mini',
-    requiresApiKey: true,
-    requiresBaseUrl: false,
-  },
   gemini: {
     label: 'Google Gemini',
-    description: 'Gemini 2.0 Flash, Pro and other Google AI models',
-    models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
-    defaultModel: 'gemini-2.0-flash',
-    requiresApiKey: true,
-    requiresBaseUrl: false,
-  },
-  claude: {
-    label: 'Anthropic Claude',
-    description: 'Claude Sonnet, Haiku and other Anthropic models',
-    models: ['claude-sonnet-4-20250514', 'claude-haiku-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
-    defaultModel: 'claude-sonnet-4-20250514',
+    description: 'Gemini 2.5 Flash',
+    models: ['gemini-2.5-flash'],
+    defaultModel: 'gemini-2.5-flash',
     requiresApiKey: true,
     requiresBaseUrl: false,
   },
   ollama: {
     label: 'Ollama (Local)',
     description: 'Run local models with Ollama – no API key needed',
-    models: ['llama3', 'llama3.1', 'mistral', 'codellama', 'gemma2', 'phi3', 'qwen2'],
-    defaultModel: 'llama3',
+    models: ['llama3.1'],
+    defaultModel: 'llama3.1',
     requiresApiKey: false,
     requiresBaseUrl: true,
     baseUrlPlaceholder: 'http://localhost:11434',
   },
-  custom: {
-    label: 'Custom (OpenAI-compatible)',
-    description: 'Any OpenAI-compatible API endpoint',
-    models: [],
-    defaultModel: '',
-    requiresApiKey: false,
-    requiresBaseUrl: true,
-    baseUrlPlaceholder: 'https://your-api.example.com',
+  siemens: {
+    label: 'Siemens AI',
+    description: 'Siemens LLM API – code.siemens.io/ai',
+    models: [
+      'mistral-7b-instruct',
+      'qwen-3.5-27b',
+      'qwen3-30b-a3b-instruct-2507',
+      'deepseek-r1-0528-qwen3-8b',
+      'gpt-oss-120b',
+      'llama-3.1-8b-instruct',
+    ],
+    defaultModel: 'mistral-7b-instruct',
+    requiresApiKey: true,
+    requiresBaseUrl: false,
   },
 };
 
