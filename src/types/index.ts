@@ -161,7 +161,7 @@ export interface WorkspacesConfig {
 }
 
 // AI Provider types
-export type AIProvider = 'openai' | 'gemini' | 'claude' | 'ollama' | 'custom';
+export type AIProvider = 'gemini' | 'ollama' | 'siemens';
 
 export interface AISettings {
   enabled: boolean;

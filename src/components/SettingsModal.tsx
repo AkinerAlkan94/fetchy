@@ -410,7 +410,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenWorkspaces, initi
                     <ShieldAlert size={14} className='text-yellow-500 cursor-help' />
                     <div className='absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 p-3 bg-[#1a1a2e] border border-yellow-500/30 rounded text-xs text-yellow-300 shadow-lg z-50'>
                       <p className='font-semibold flex items-center gap-1'><Info size={12} /> Security Notice</p>
-                      <p className='mt-1'>When enabled, your API keys and AI configuration are stored in the workspace's <strong className='text-yellow-200'>secrets folder</strong> ({activeWorkspace ? `${activeWorkspace.name}/.secrets/` : '.secrets/'}).</p>
+                      <p className='mt-1'>When enabled, your API keys and AI configuration are stored in the workspace's <strong className='text-yellow-200'>secrets folder</strong>.</p>
                       <p className='mt-1'>Make sure this folder is secured, never shared publicly, and is included in your <strong className='text-yellow-200'>.gitignore</strong> to prevent accidental commits.</p>
                       <p className='mt-1'>When disabled, settings are kept in memory only and will be cleared on app restart.</p>
                     </div>
