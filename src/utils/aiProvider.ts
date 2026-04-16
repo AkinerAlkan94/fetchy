@@ -372,6 +372,214 @@ ${responseBody}`,
   ];
 }
 
+export function buildCustomChatPrompt(req: ApiRequest, res: ApiResponse, userMessage: string): AIMessage[] {
+  const fullHeaders = req.headers
+    .filter((h) => h.enabled && h.key)
+    .map((h) => `${h.key}: ${h.value}`)
+    .join('\n');
+
+  const fullParams = req.params
+    .filter((p) => p.enabled && p.key)
+    .map((p) => `${p.key}=${p.value}`)
+    .join('\n');
+
+  let requestBody = '(none)';
+  if (req.body.type !== 'none') {
+    if (req.body.raw) {
+      requestBody = `[${req.body.type}]\n${req.body.raw}`;
+    } else if (req.body.type === 'form-data' && req.body.formData) {
+      requestBody = `[form-data]\n${req.body.formData.filter(f => f.enabled).map(f => `${f.key}: ${f.value}`).join('\n')}`;
+    } else if (req.body.type === 'x-www-form-urlencoded' && req.body.urlencoded) {
+      requestBody = `[x-www-form-urlencoded]\n${req.body.urlencoded.filter(f => f.enabled).map(f => `${f.key}=${f.value}`).join('&')}`;
+    }
+  }
+
+  const responseHeaders = Object.entries(res.headers)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
+
+  let responseBody = res.body || '(empty)';
+  if (responseBody.length > 5000) {
+    responseBody = responseBody.slice(0, 5000) + '\n... (truncated)';
+  }
+
+  const context = `--- REQUEST ---
+Method: ${req.method}
+URL: ${req.url}
+Headers:
+${fullHeaders || '(none)'}
+Query Parameters:
+${fullParams || '(none)'}
+Body:
+${requestBody}
+Authentication: ${req.auth.type !== 'none' ? req.auth.type : '(none)'}
+
+--- RESPONSE ---
+Status: ${res.status} ${res.statusText}
+Time: ${res.time}ms
+Size: ${res.size} bytes
+Headers:
+${responseHeaders}
+Body:
+${responseBody}`;
+
+  return [
+    {
+      role: 'system',
+      content: `You are an expert API developer assistant integrated into Fetchy, a REST client application.
+The user is asking a custom question about the API request and response shown below. Answer helpfully, accurately, and concisely. Use markdown formatting where appropriate.\n\n${context}`,
+    },
+    {
+      role: 'user',
+      content: userMessage,
+    },
+  ];
+}
+
+export function buildConvertToFetchySyntaxPrompt(scriptCode: string, scriptType: 'pre' | 'post'): AIMessage[] {
+  const typeLabel = scriptType === 'pre' ? 'pre-request' : 'post-request';
+
+  const preExamples = `
+// Set an environment variable
+fetchy.environment.set('key', 'value');
+
+// Get an environment variable
+const value = fetchy.environment.get('key');
+
+// Get all environment variables
+const vars = fetchy.environment.all();
+console.log(vars);
+
+// Log output to the Console tab
+console.log('message');
+
+// Generate a UUID and store it
+const uuid = crypto.randomUUID();
+fetchy.environment.set('uuid', uuid);
+console.log('UUID:', uuid);
+
+// Store the current Unix timestamp
+const ts = String(Date.now());
+fetchy.environment.set('timestamp', ts);
+console.log('Timestamp:', ts);
+
+// Generate a random integer
+const rand = String(Math.floor(Math.random() * 1000));
+fetchy.environment.set('randomNum', rand);
+`;
+
+  const postExamples = `
+// Log the full response body
+console.log(fetchy.response.data);
+
+// Read the HTTP status code
+const status = fetchy.response.status;
+console.log('Status:', status);
+
+// Read a specific response header
+const ct = fetchy.response.headers['content-type'];
+console.log('Content-Type:', ct);
+
+// Extract a field from the JSON response and save it
+const value = fetchy.response.data.field;
+fetchy.environment.set('key', value);
+
+// Save an access token from the response body
+const token = fetchy.response.data.access_token
+  || fetchy.response.data.token;
+if (token) {
+  fetchy.environment.set('token', token);
+  console.log('Token saved.');
+}
+
+// Check status code and branch
+if (fetchy.response.status === 200) {
+  console.log('Request succeeded!');
+} else {
+  console.log('Unexpected status:', fetchy.response.status);
+}
+
+// Set an environment variable from the response
+fetchy.environment.set('key', 'value');
+
+// Get an environment variable
+const envValue = fetchy.environment.get('key');
+
+// Log all environment variables
+const allVars = fetchy.environment.all();
+console.log(allVars);
+`;
+
+  const examples = scriptType === 'pre' ? preExamples : postExamples;
+
+  return [
+    {
+      role: 'system',
+      content: `You are an expert JavaScript developer assistant integrated into Fetchy, a REST client application.
+Fetchy scripts use a built-in \`fetchy\` API for interacting with the environment and response. Convert the provided script to use proper Fetchy syntax.
+
+Fetchy API reference:
+- \`fetchy.environment.set(key, value)\` — set an environment variable
+- \`fetchy.environment.get(key)\` — get an environment variable (returns string or undefined)
+- \`fetchy.environment.all()\` — get all variables as an array of { key, value } objects
+${scriptType === 'post' ? `- \`fetchy.response.status\` — HTTP status code (number)
+- \`fetchy.response.statusText\` — status text string
+- \`fetchy.response.data\` — parsed response body (object if JSON, otherwise string)
+- \`fetchy.response.headers\` — response headers as an object (keys lowercased)
+- \`fetchy.response.time\` — response time in ms
+- \`fetchy.response.size\` — response size in bytes` : ''}
+- \`console.log(...)\` — print to the Fetchy Console tab
+
+Real Fetchy snippet examples (use these as conversion patterns):
+\`\`\`javascript${examples}\`\`\`
+
+Rules:
+- Return ONLY the converted JavaScript code, no explanations, no markdown fences.
+- Replace any fetch/axios calls, localStorage, or non-Fetchy APIs with the appropriate Fetchy equivalents.
+- Use the snippet examples above as authoritative patterns for correct Fetchy syntax.
+- Keep the original logic and comments intact.
+- If something cannot be converted, add a \`// TODO:\` comment explaining why.`,
+    },
+    {
+      role: 'user',
+      content: `Convert this ${typeLabel} script to use Fetchy syntax:\n\n${scriptCode || '// (empty script)'}`,
+    },
+  ];
+}
+
+export function buildScriptChatPrompt(scriptCode: string, scriptType: 'pre' | 'post', userMessage: string): AIMessage[] {
+  const typeLabel = scriptType === 'pre' ? 'pre-request' : 'post-request';
+  return [
+    {
+      role: 'system',
+      content: `You are an expert JavaScript developer assistant integrated into Fetchy, a REST client application.
+The user is working on a ${typeLabel} script in Fetchy. Fetchy scripts use a built-in \`fetchy\` API:
+
+- \`fetchy.environment.set(key, value)\` — set an environment variable
+- \`fetchy.environment.get(key)\` — get an environment variable (returns string or undefined)
+- \`fetchy.environment.all()\` — get all variables as an array of { key, value } objects
+${scriptType === 'post' ? `- \`fetchy.response.status\` — HTTP status code (number)
+- \`fetchy.response.statusText\` — status text string
+- \`fetchy.response.data\` — parsed response body (object if JSON, otherwise string)
+- \`fetchy.response.headers\` — response headers as an object (keys lowercased)
+- \`fetchy.response.time\` — response time in ms
+- \`fetchy.response.size\` — response size in bytes` : ''}
+- \`console.log(...)\` — print to the Fetchy Console tab
+
+Current script:
+\`\`\`javascript
+${scriptCode || '// (empty script)'}
+\`\`\`
+
+Answer the user's question helpfully and concisely. Use markdown formatting. When showing code, use \`\`\`javascript fences.`,
+    },
+    {
+      role: 'user',
+      content: userMessage,
+    },
+  ];
+}
+
 // ─── Request execution ──────────────────────────────────────────────────────
 
 export async function sendAIRequest(

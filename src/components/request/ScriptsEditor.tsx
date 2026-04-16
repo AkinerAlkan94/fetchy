@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import CodeEditor, { CodeEditorHandle } from '../CodeEditor';
+import { AIScriptAssistButton } from '../AIAssistant';
 
 // ─── Script Snippets Data ─────────────────────────────────────────────────────
 
@@ -55,7 +56,9 @@ export default function ScriptsEditor({ type, value, onChange }: ScriptsEditorPr
       </div>
       <ScriptSnippetsPanel
         type={type}
+        scriptValue={value}
         onInsert={(code) => editorRef.current?.insertAtCursor(code)}
+        onApply={onChange}
       />
     </div>
   );
@@ -63,7 +66,12 @@ export default function ScriptsEditor({ type, value, onChange }: ScriptsEditorPr
 
 // ─── Script Snippets Panel ────────────────────────────────────────────────────
 
-function ScriptSnippetsPanel({ type, onInsert }: { type: 'pre' | 'post'; onInsert: (code: string) => void }) {
+function ScriptSnippetsPanel({ type, scriptValue, onInsert, onApply }: {
+  type: 'pre' | 'post';
+  scriptValue: string;
+  onInsert: (code: string) => void;
+  onApply: (code: string) => void;
+}) {
   const snippets = type === 'pre' ? PRE_SCRIPT_SNIPPETS : POST_SCRIPT_SNIPPETS;
   const [expanded, setExpanded] = useState(true);
 
@@ -97,25 +105,39 @@ function ScriptSnippetsPanel({ type, onInsert }: { type: 'pre' | 'post'; onInser
         </button>
       </div>
 
-      {/* Snippet list */}
       {expanded && (
-        <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
-          {snippets.map((snippet) => (
-            <button
-              key={snippet.label}
-              onClick={() => onInsert(snippet.code)}
-              className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-fetchy-border transition-colors group"
-              title={snippet.description}
-            >
-              <span className="block font-medium text-fetchy-accent group-hover:text-fetchy-accent truncate">
-                {snippet.label}
-              </span>
-              <span className="block text-fetchy-text-muted truncate mt-0.5 text-[10px]">
-                {snippet.description}
-              </span>
-            </button>
-          ))}
-        </div>
+        <>
+          {/* AI Assist — above the snippet list */}
+          <div className="px-2 pt-2 pb-1 shrink-0">
+            <AIScriptAssistButton
+              scriptType={type}
+              scriptValue={scriptValue}
+              onApply={onApply}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="mx-2 border-t border-fetchy-border shrink-0" />
+
+          {/* Snippet list */}
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+            {snippets.map((snippet) => (
+              <button
+                key={snippet.label}
+                onClick={() => onInsert(snippet.code)}
+                className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-fetchy-border transition-colors group"
+                title={snippet.description}
+              >
+                <span className="block font-medium text-fetchy-accent group-hover:text-fetchy-accent truncate">
+                  {snippet.label}
+                </span>
+                <span className="block text-fetchy-text-muted truncate mt-0.5 text-[10px]">
+                  {snippet.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

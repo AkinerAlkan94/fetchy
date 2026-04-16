@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Save, Plus, Trash2, FileText, X, Terminal, Check } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
-import { ApiRequest, ApiResponse, HttpMethod, KeyValue } from '../types';
+import { ApiRequest, ApiResponse, KeyValue } from '../types';
 import { executeRequest } from '../utils/httpClient';
 import { resolveRequestVariables, generateCurl, generateJavaScript, generatePython, generateJava, generateDotNet, generateGo, generateRust, generateCpp } from '../utils/helpers';
 import { resolveInheritedAuth } from '../utils/authInheritance';
@@ -11,7 +11,6 @@ import { parseCurlCommand } from '../utils/curlParser';
 import { computeKeyColWidth } from '../utils/kvTableUtils';
 import VariableInput from './VariableInput';
 import Tooltip from './Tooltip';
-import { AIRequestToolbar, AIGenerateRequestModal } from './AIAssistant';
 import BodyEditor from './request/BodyEditor';
 import AuthEditor from './request/AuthEditor';
 import ScriptsEditor from './request/ScriptsEditor';
@@ -319,54 +318,6 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave, handleSend, handleCancel, isLoading]);
 
-  // ─── AI handlers ─────────────────────────────────────────────────────────────
-  const handleAIApplyRequest = useCallback(
-    (generated: {
-      method: string;
-      url: string;
-      headers: Array<{ key: string; value: string; enabled: boolean }>;
-      params: Array<{ key: string; value: string; enabled: boolean }>;
-      body: { type: string; raw?: string };
-      name: string;
-    }) => {
-      if (!request) return;
-      handleChange({
-        method: (generated.method || request.method) as HttpMethod,
-        url: generated.url || request.url,
-        headers: generated.headers.map((h) => ({ id: uuidv4(), ...h })),
-        params: generated.params.map((p) => ({ id: uuidv4(), ...p })),
-        body: {
-          type: generated.body.type as ApiRequest['body']['type'],
-          raw: generated.body.raw || '',
-        },
-        name: generated.name || request.name,
-      });
-    },
-    [request, handleChange]
-  );
-
-  const handleAIApplyScript = useCallback(
-    (script: string, type: 'pre-request' | 'test') => {
-      if (!request) return;
-      if (type === 'pre-request') {
-        handleChange({ preScript: script });
-        setActiveSection('preScript');
-      } else {
-        handleChange({ script });
-        setActiveSection('script');
-      }
-    },
-    [request, handleChange]
-  );
-
-  const handleAIApplyName = useCallback(
-    (name: string) => {
-      if (!request) return;
-      handleChange({ name });
-    },
-    [request, handleChange]
-  );
-
   const addKeyValue = (field: 'headers' | 'params') => {
     if (!request) return;
     const newKv: KeyValue = { id: uuidv4(), key: '', value: '', enabled: true };
@@ -602,16 +553,6 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
         </Tooltip>
       </div>
 
-      {/* AI Request Toolbar */}
-      <div className="px-3 py-1.5 border-b border-fetchy-border shrink-0">
-        <AIRequestToolbar
-          request={request}
-          onOpenGenerateRequest={() => setShowAIGenerateModal(true)}
-          onApplyScript={handleAIApplyScript}
-          onApplyName={handleAIApplyName}
-        />
-      </div>
-
       {/* Section content */}
       <div className="flex-1 overflow-hidden">
         {activeSection === 'params' && renderKeyValueTable('params')}
@@ -776,12 +717,6 @@ export default function RequestPanel({ setResponse, setSentRequest, setIsLoading
         </div>
       )}
 
-      {/* AI Generate Request Modal */}
-      <AIGenerateRequestModal
-        isOpen={showAIGenerateModal}
-        onClose={() => setShowAIGenerateModal(false)}
-        onApply={handleAIApplyRequest}
-      />
     </div>
   );
 }

@@ -1,11 +1,13 @@
-import { useState, useCallback } from 'react';
-import { Bot, X, Loader2, Copy, Check, Sparkles, FileText, Terminal, MessageSquare, Bug, Download, Eye, Code2, Ticket, AlertCircle } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Bot, X, Loader2, Copy, Check, Sparkles, FileText, MessageSquare, Bug, Download, Eye, Code2, Ticket, AlertCircle, MessageCircle, RefreshCw } from 'lucide-react';
 import { usePreferencesStore } from '../store/preferencesStore';
 import {
   sendAIRequest,
   buildGenerateRequestPrompt,
-  buildGenerateScriptPrompt,
   buildExplainResponsePrompt,
+  buildCustomChatPrompt,
+  buildConvertToFetchySyntaxPrompt,
+  buildScriptChatPrompt,
   buildGenerateDocsPrompt,
   buildGenerateBugReportPrompt,
   PROVIDER_META,
@@ -175,22 +177,26 @@ interface AIResultModalProps {
   error: string;
   result: string;
   onCopy?: () => void;
-  onApply?: () => void;
+  onApply?: (content: string) => void;
   applyLabel?: string;
   language?: string;
   isMarkdown?: boolean;
   downloadFileName?: string;
+  allowEdit?: boolean;
   onCreateJira?: () => void;
   jiraLoading?: boolean;
   jiraResult?: { success: boolean; issueKey?: string; issueUrl?: string; error?: string } | null;
 }
 
-function AIResultModal({ isOpen, onClose, title, icon, loading, error, result, onCopy, onApply, applyLabel, language, isMarkdown, downloadFileName, onCreateJira, jiraLoading, jiraResult }: AIResultModalProps) {
+function AIResultModal({ isOpen, onClose, title, icon, loading, error, result, onCopy, onApply, applyLabel, language, isMarkdown, allowEdit, downloadFileName, onCreateJira, jiraLoading, jiraResult }: AIResultModalProps) {
   const [copied, setCopied] = useState(false);
   const [mdView, setMdView] = useState<'preview' | 'source'>('preview');
+  const [editedContent, setEditedContent] = useState(result);
+
+  useEffect(() => { setEditedContent(result); }, [result]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(result);
+    navigator.clipboard.writeText(editedContent);
     setCopied(true);
     onCopy?.();
     setTimeout(() => setCopied(false), 2000);
@@ -277,7 +283,12 @@ function AIResultModal({ isOpen, onClose, title, icon, loading, error, result, o
                   )
                 ) : language ? (
                   <div className='h-[400px]'>
-                    <CodeEditor value={result} onChange={() => {}} language={language as 'json' | 'javascript' | 'text'} readOnly />
+                    <CodeEditor
+                      value={editedContent}
+                      onChange={allowEdit ? setEditedContent : () => {}}
+                      language={language as 'json' | 'javascript' | 'text'}
+                      readOnly={!allowEdit}
+                    />
                   </div>
                 ) : (
                   <div className='prose prose-invert prose-sm max-w-none text-gray-300 ai-markdown-content p-4 overflow-auto h-full'>
@@ -306,7 +317,7 @@ function AIResultModal({ isOpen, onClose, title, icon, loading, error, result, o
                 )}
                 {onApply && (
                   <button
-                    onClick={onApply}
+                    onClick={() => onApply(editedContent)}
                     className='px-3 py-1.5 text-sm ai-btn-solid rounded transition-colors flex items-center gap-1.5'
                   >
                     <Check size={14} />
@@ -498,88 +509,186 @@ function AIActionButton({ icon, label, onClick, loading, disabled }: AIActionBut
   );
 }
 
-// ─── AI Toolbar for Request Panel ───────────────────────────────────────────
+// ─── AI Script Assist Button (for Pre-Script / Post-Script tabs) ────────────
 
-interface AIRequestToolbarProps {
-  request: ApiRequest;
-  response?: ApiResponse | null;
-  onOpenGenerateRequest: () => void;
-  onApplyScript: (script: string, type: 'pre-request' | 'test') => void;
-  onApplyName?: (name: string) => void;
+interface AIScriptAssistButtonProps {
+  scriptType: 'pre' | 'post';
+  scriptValue: string;
+  onApply: (code: string) => void;
 }
 
-export function AIRequestToolbar({
-  request,
-  response,
-  onOpenGenerateRequest,
-  onApplyScript,
-}: AIRequestToolbarProps) {
+export function AIScriptAssistButton({ scriptType, scriptValue, onApply }: AIScriptAssistButtonProps) {
   const { aiSettings: ai } = usePreferencesStore();
 
-  const [scriptModal, setScriptModal] = useState<{
-    open: boolean;
-    type: 'pre-request' | 'test';
-    loading: boolean;
-    error: string;
-    result: string;
-  }>({ open: false, type: 'pre-request', loading: false, error: '', result: '' });
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<'convert' | 'chat' | null>(null);
+  const [chatMessage, setChatMessage] = useState('');
 
-  const handleGenerateScript = useCallback(
-    async (type: 'pre-request' | 'test') => {
-      // If not configured, open AI settings instead of showing error modal
-      if (!ai.apiKey && !ai.baseUrl) {
-        window.dispatchEvent(new CustomEvent('open-ai-settings'));
-        return;
-      }
-      setScriptModal({ open: true, type, loading: true, error: '', result: '' });
-      const messages = buildGenerateScriptPrompt(request, response ?? undefined, type);
-      const res = await sendAIRequest(ai, messages);
-      if (res.success) {
-        // Clean markdown fences
-        let cleaned = res.content.trim();
-        if (cleaned.startsWith('```')) {
-          cleaned = cleaned.replace(/^```(?:javascript|js)?\n?/, '').replace(/\n?```$/, '');
+  const [result, setResult] = useState<{ loading: boolean; error: string; content: string; mode: 'convert' | 'chat' | null }>({
+    loading: false, error: '', content: '', mode: null,
+  });
+
+  const handleAsk = useCallback(async () => {
+    if (!selectedMode) return;
+    if (!ai.apiKey && !ai.baseUrl) {
+      window.dispatchEvent(new CustomEvent('open-ai-settings'));
+      return;
+    }
+
+    setPanelOpen(false);
+    const mode = selectedMode;
+    const msg = chatMessage.trim();
+    setChatMessage('');
+    setSelectedMode(null);
+    setResult({ loading: true, error: '', content: '', mode });
+
+    const messages =
+      mode === 'convert'
+        ? buildConvertToFetchySyntaxPrompt(scriptValue, scriptType)
+        : buildScriptChatPrompt(scriptValue, scriptType, msg || 'Help me improve this script.');
+
+    const res = await sendAIRequest(ai, messages);
+    if (res.success) {
+      let content = res.content.trim();
+      if (mode === 'convert') {
+        // Strip markdown fences if the model adds them
+        if (content.startsWith('```')) {
+          content = content.replace(/^```(?:javascript|js)?\n?/, '').replace(/\n?```$/, '');
         }
-        setScriptModal((prev) => ({ ...prev, loading: false, result: cleaned }));
-      } else {
-        setScriptModal((prev) => ({ ...prev, loading: false, error: res.error || 'Failed to generate script' }));
       }
-    },
-    [request, response, ai]
-  );
+      setResult({ loading: false, error: '', content, mode });
+    } else {
+      setResult({ loading: false, error: res.error || 'AI request failed', content: '', mode });
+    }
+  }, [selectedMode, chatMessage, scriptValue, scriptType, ai]);
 
   if (!ai.enabled) return null;
 
+  const modes = [
+    {
+      id: 'convert' as const,
+      icon: <RefreshCw size={14} />,
+      label: 'Convert to Fetchy Syntax',
+      description: 'Rewrite the current script using the Fetchy scripting API',
+    },
+    {
+      id: 'chat' as const,
+      icon: <MessageCircle size={14} />,
+      label: 'Custom Chat',
+      description: 'Ask anything — current script code is included in context automatically',
+    },
+  ];
+
   return (
     <>
-      <div className='flex items-center gap-1.5 flex-wrap'>
-        <span className='text-[10px] ai-text font-medium uppercase tracking-wider flex items-center gap-1'>
-          <Bot size={10} /> AI
-        </span>
-        <AIActionButton icon={<Sparkles size={12} />} label='Generate Request' onClick={() => {
+      <button
+        onClick={() => {
           if (!ai.apiKey && !ai.baseUrl) { window.dispatchEvent(new CustomEvent('open-ai-settings')); return; }
-          onOpenGenerateRequest();
-        }} />
-        <AIActionButton icon={<Terminal size={12} />} label='Pre-Script' onClick={() => handleGenerateScript('pre-request')} />
-        {/* 'test' is the internal script type key — label is intentionally "Post-Script", do not rename */}
-        <AIActionButton icon={<Terminal size={12} />} label='Post-Script' onClick={() => handleGenerateScript('test')} />
-      </div>
-
-      <AIResultModal
-        isOpen={scriptModal.open}
-        onClose={() => setScriptModal((prev) => ({ ...prev, open: false }))}
-        title={`AI Generated ${scriptModal.type === 'pre-request' ? 'Pre-Request' : 'Post-Request'} Script`}
-        icon={<Terminal size={18} className='ai-text' />}
-        loading={scriptModal.loading}
-        error={scriptModal.error}
-        result={scriptModal.result}
-        language='javascript'
-        onApply={() => {
-          onApplyScript(scriptModal.result, scriptModal.type);
-          setScriptModal((prev) => ({ ...prev, open: false }));
+          setPanelOpen(true);
         }}
-        applyLabel={`Apply to ${scriptModal.type === 'pre-request' ? 'Pre-Script' : 'Post-Script'}`}
-      />
+        className='w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs ai-btn-solid rounded transition-colors'
+        title='AI Assist'
+      >
+        <Bot size={12} />
+        <span>AI Assist</span>
+      </button>
+
+      {/* Selection panel */}
+      {panelOpen && (
+        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
+          <div className='bg-fetchy-modal rounded-lg shadow-xl w-[480px] overflow-hidden border border-fetchy-border'>
+            <div className='flex items-center justify-between p-4 border-b border-[#2d2d44]'>
+              <div className='flex items-center gap-2'>
+                <Bot size={18} className='ai-text' />
+                <h2 className='text-lg font-semibold text-white'>AI Assist — {scriptType === 'pre' ? 'Pre-Script' : 'Post-Script'}</h2>
+              </div>
+              <button
+                onClick={() => { setPanelOpen(false); setSelectedMode(null); setChatMessage(''); }}
+                className='p-1 text-gray-400 hover:text-white hover:bg-[#2d2d44] rounded'
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className='p-4 space-y-3'>
+              <p className='text-xs text-gray-500 uppercase tracking-wider font-medium'>Select an action</p>
+              <div className='space-y-2'>
+                {modes.map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => setSelectedMode(mode.id)}
+                    className={`w-full text-left px-3 py-2.5 rounded border transition-colors ${
+                      selectedMode === mode.id
+                        ? 'border-fetchy-accent bg-fetchy-accent/10'
+                        : 'border-[#2d2d44] bg-[#0f0f1a] hover:border-fetchy-accent/50 hover:bg-[#1a1a2e]'
+                    }`}
+                  >
+                    <div className='flex items-center gap-2 ai-text'>
+                      {mode.icon}
+                      <span className='text-sm font-medium text-white'>{mode.label}</span>
+                    </div>
+                    <p className='text-xs text-gray-500 mt-0.5 ml-[22px]'>{mode.description}</p>
+                  </button>
+                ))}
+              </div>
+              {selectedMode === 'chat' && (
+                <div className='space-y-2 pt-1'>
+                  <label className='text-sm text-gray-300 font-medium'>Your message</label>
+                  <textarea
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    placeholder='e.g. "How do I extract the token from the response and save it?"'
+                    rows={4}
+                    className='w-full px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm resize-none focus:outline-none ai-focus'
+                    autoFocus
+                  />
+                  <p className='text-xs text-gray-500'>The current script code is automatically included in context.</p>
+                </div>
+              )}
+              <div className='flex gap-2 justify-end pt-1'>
+                <button
+                  onClick={() => { setPanelOpen(false); setSelectedMode(null); setChatMessage(''); }}
+                  className='px-4 py-2 text-sm bg-[#0f0f1a] text-gray-300 border border-[#2d2d44] rounded hover:bg-[#1a1a2e] transition-colors'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAsk}
+                  disabled={!selectedMode || (selectedMode === 'chat' && !chatMessage.trim())}
+                  className='px-4 py-2 text-sm ai-btn-solid rounded transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed'
+                >
+                  <Sparkles size={14} />
+                  Ask
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Result modal */}
+      {(result.loading || result.content || result.error) && (
+        <AIResultModal
+          isOpen={true}
+          onClose={() => setResult({ loading: false, error: '', content: '', mode: null })}
+          title={result.mode === 'convert' ? 'Convert to Fetchy Syntax' : 'AI Script Chat'}
+          icon={result.mode === 'convert' ? <RefreshCw size={18} className='ai-text' /> : <MessageCircle size={18} className='ai-text' />}
+          loading={result.loading}
+          error={result.error}
+          result={result.content}
+          language={result.mode === 'convert' ? 'javascript' : undefined}
+          isMarkdown={result.mode === 'chat'}
+          allowEdit={result.mode === 'convert'}
+          onApply={
+            result.mode === 'convert' && result.content
+              ? (content) => {
+                  onApply(content);
+                  setResult({ loading: false, error: '', content: '', mode: null });
+                }
+              : undefined
+          }
+          applyLabel='Apply to Script'
+        />
+      )}
     </>
   );
 }
@@ -594,68 +703,52 @@ interface AIResponseToolbarProps {
 export function AIResponseToolbar({ request, response }: AIResponseToolbarProps) {
   const { aiSettings: ai, jiraSettings, jiraPat } = usePreferencesStore();
 
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [selectedSnippet, setSelectedSnippet] = useState<'explain' | 'docs' | 'bugreport' | 'customchat' | null>(null);
+  const [bugNote, setBugNote] = useState('');
+  const [customChatMessage, setCustomChatMessage] = useState('');
+
   const [modal, setModal] = useState<{
     open: boolean;
-    feature: 'explain' | 'docs' | 'bugreport';
+    feature: 'explain' | 'docs' | 'bugreport' | 'customchat';
     loading: boolean;
     error: string;
     result: string;
   }>({ open: false, feature: 'explain', loading: false, error: '', result: '' });
 
-  const [bugReportPrompt, setBugReportPrompt] = useState(false);
-  const [bugNote, setBugNote] = useState('');
   const [jiraLoading, setJiraLoading] = useState(false);
   const [jiraResult, setJiraResult] = useState<{ success: boolean; issueKey?: string; issueUrl?: string; error?: string } | null>(null);
 
-  const handleExplain = useCallback(async () => {
-    // If not configured, open AI settings instead of showing error modal
+  const handleAsk = useCallback(async () => {
+    if (!selectedSnippet) return;
     if (!ai.apiKey && !ai.baseUrl) {
       window.dispatchEvent(new CustomEvent('open-ai-settings'));
       return;
     }
-    setModal({ open: true, feature: 'explain', loading: true, error: '', result: '' });
-    const messages = buildExplainResponsePrompt(request, response);
-    const res = await sendAIRequest(ai, messages);
-    if (res.success) {
-      setModal((prev) => ({ ...prev, loading: false, result: res.content }));
-    } else {
-      setModal((prev) => ({ ...prev, loading: false, error: res.error || 'Failed to explain response' }));
-    }
-  }, [request, response, ai]);
+    setPanelOpen(false);
+    setModal({ open: true, feature: selectedSnippet, loading: true, error: '', result: '' });
 
-  const handleGenerateDocs = useCallback(async () => {
-    // If not configured, open AI settings instead of showing error modal
-    if (!ai.apiKey && !ai.baseUrl) {
-      window.dispatchEvent(new CustomEvent('open-ai-settings'));
-      return;
-    }
-    setModal({ open: true, feature: 'docs', loading: true, error: '', result: '' });
-    const messages = buildGenerateDocsPrompt(request, response);
-    const res = await sendAIRequest(ai, messages);
-    if (res.success) {
-      setModal((prev) => ({ ...prev, loading: false, result: res.content }));
+    let messages;
+    if (selectedSnippet === 'explain') {
+      messages = buildExplainResponsePrompt(request, response);
+    } else if (selectedSnippet === 'docs') {
+      messages = buildGenerateDocsPrompt(request, response);
+    } else if (selectedSnippet === 'customchat') {
+      messages = buildCustomChatPrompt(request, response, customChatMessage.trim() || 'Analyze this request and response.');
     } else {
-      setModal((prev) => ({ ...prev, loading: false, error: res.error || 'Failed to generate docs' }));
+      messages = buildGenerateBugReportPrompt(request, response, bugNote || 'The response is not in the expected format.');
     }
-  }, [request, response, ai]);
-
-  const handleGenerateBugReport = useCallback(async (note: string) => {
-    // If not configured, open AI settings instead of showing error modal
-    if (!ai.apiKey && !ai.baseUrl) {
-      window.dispatchEvent(new CustomEvent('open-ai-settings'));
-      return;
-    }
-    setBugReportPrompt(false);
     setBugNote('');
-    setModal({ open: true, feature: 'bugreport', loading: true, error: '', result: '' });
-    const messages = buildGenerateBugReportPrompt(request, response, note);
+    setCustomChatMessage('');
+    setSelectedSnippet(null);
+
     const res = await sendAIRequest(ai, messages);
     if (res.success) {
       setModal((prev) => ({ ...prev, loading: false, result: res.content }));
     } else {
-      setModal((prev) => ({ ...prev, loading: false, error: res.error || 'Failed to generate bug report' }));
+      setModal((prev) => ({ ...prev, loading: false, error: res.error || 'Failed to get AI response' }));
     }
-  }, [request, response, ai]);
+  }, [selectedSnippet, bugNote, request, response, ai]);
 
   const jiraConfigured = jiraSettings.enabled && jiraSettings.baseUrl && jiraPat && jiraSettings.projectKey;
 
@@ -776,13 +869,22 @@ export function AIResponseToolbar({ request, response }: AIResponseToolbarProps)
     explain: 'AI Response Explanation',
     docs: 'AI Generated Documentation',
     bugreport: 'AI Generated Bug Report',
+    customchat: 'AI Custom Chat',
   };
 
   const modalIcons: Record<string, React.ReactNode> = {
     explain: <MessageSquare size={18} className='ai-text' />,
     docs: <FileText size={18} className='ai-text' />,
     bugreport: <Bug size={18} className='ai-text' />,
+    customchat: <MessageCircle size={18} className='ai-text' />,
   };
+
+  const snippets = [
+    { id: 'explain' as const, icon: <MessageSquare size={14} />, label: 'Explain Response', description: 'Get a clear explanation of what this response means' },
+    { id: 'docs' as const, icon: <FileText size={14} />, label: 'Generate Docs', description: 'Generate API documentation for this endpoint' },
+    { id: 'bugreport' as const, icon: <Bug size={14} />, label: 'Bug Report', description: 'Create a structured bug report from this response' },
+    { id: 'customchat' as const, icon: <MessageCircle size={14} />, label: 'Custom Chat', description: 'Ask anything — full request & response context is included automatically' },
+  ];
 
   return (
     <>
@@ -790,61 +892,94 @@ export function AIResponseToolbar({ request, response }: AIResponseToolbarProps)
         <span className='text-[10px] ai-text font-medium uppercase tracking-wider flex items-center gap-1'>
           <Bot size={10} /> AI
         </span>
-        <AIActionButton icon={<MessageSquare size={12} />} label='Explain Response' onClick={handleExplain} />
-        <AIActionButton icon={<FileText size={12} />} label='Generate Docs' onClick={handleGenerateDocs} />
-        <AIActionButton icon={<Bug size={12} />} label='Bug Report' onClick={() => {
-          if (!ai.apiKey && !ai.baseUrl) { window.dispatchEvent(new CustomEvent('open-ai-settings')); return; }
-          setBugReportPrompt(true);
-        }} />
+        <AIActionButton
+          icon={<Sparkles size={12} />}
+          label='AI Assist'
+          onClick={() => {
+            if (!ai.apiKey && !ai.baseUrl) { window.dispatchEvent(new CustomEvent('open-ai-settings')); return; }
+            setPanelOpen(true);
+          }}
+        />
         <span className='text-[10px] text-gray-500 ml-1'>via {providerLabel}</span>
       </div>
 
-      {/* Bug Report Note Prompt */}
-      {bugReportPrompt && (
+      {/* AI Assist Panel */}
+      {panelOpen && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='bg-fetchy-modal rounded-lg shadow-xl w-[500px] overflow-hidden border border-fetchy-border'>
+          <div className='bg-fetchy-modal rounded-lg shadow-xl w-[480px] overflow-hidden border border-fetchy-border'>
             <div className='flex items-center justify-between p-4 border-b border-[#2d2d44]'>
               <div className='flex items-center gap-2'>
-                <Bug size={18} className='ai-text' />
-                <h2 className='text-lg font-semibold text-white'>Generate Bug Report</h2>
+                <Bot size={18} className='ai-text' />
+                <h2 className='text-lg font-semibold text-white'>AI Assist</h2>
               </div>
               <button
-                onClick={() => { setBugReportPrompt(false); setBugNote(''); }}
+                onClick={() => { setPanelOpen(false); setSelectedSnippet(null); setBugNote(''); }}
                 className='p-1 text-gray-400 hover:text-white hover:bg-[#2d2d44] rounded'
               >
                 <X size={18} />
               </button>
             </div>
-            <div className='p-4 space-y-4'>
+            <div className='p-4 space-y-3'>
+              <p className='text-xs text-gray-500 uppercase tracking-wider font-medium'>Select an action</p>
               <div className='space-y-2'>
-                <label className='text-sm text-gray-300 font-medium'>
-                  What did you expect from this response?
-                </label>
-                <textarea
-                  value={bugNote}
-                  onChange={(e) => setBugNote(e.target.value)}
-                  placeholder='e.g., "Expected status 200 with a list of users, but got 500" or "Response body is missing the email field" or "Status is 403 but I sent valid auth token"'
-                  rows={4}
-                  className='w-full px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm resize-none focus:outline-none ai-focus'
-                  autoFocus
-                />
+                {snippets.map((snippet) => (
+                  <button
+                    key={snippet.id}
+                    onClick={() => setSelectedSnippet(snippet.id)}
+                    className={`w-full text-left px-3 py-2.5 rounded border transition-colors ${
+                      selectedSnippet === snippet.id
+                        ? 'border-fetchy-accent bg-fetchy-accent/10 text-white'
+                        : 'border-[#2d2d44] bg-[#0f0f1a] text-gray-300 hover:border-fetchy-accent/50 hover:bg-[#1a1a2e]'
+                    }`}
+                  >
+                    <div className='flex items-center gap-2 ai-text'>
+                      {snippet.icon}
+                      <span className='text-sm font-medium text-white'>{snippet.label}</span>
+                    </div>
+                    <p className='text-xs text-gray-500 mt-0.5 ml-[22px]'>{snippet.description}</p>
+                  </button>
+                ))}
               </div>
-              <p className='text-xs text-gray-500'>
-                The bug report will include all request &amp; response details automatically.
-              </p>
-              <div className='flex gap-2 justify-end'>
+              {selectedSnippet === 'bugreport' && (
+                <div className='space-y-2 pt-1'>
+                  <label className='text-sm text-gray-300 font-medium'>What did you expect? (optional)</label>
+                  <textarea
+                    value={bugNote}
+                    onChange={(e) => setBugNote(e.target.value)}
+                    placeholder='e.g., "Expected status 200 with a list of users, but got 500"'
+                    rows={3}
+                    className='w-full px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm resize-none focus:outline-none ai-focus'
+                  />
+                </div>
+              )}
+              {selectedSnippet === 'customchat' && (
+                <div className='space-y-2 pt-1'>
+                  <label className='text-sm text-gray-300 font-medium'>Your message</label>
+                  <textarea
+                    value={customChatMessage}
+                    onChange={(e) => setCustomChatMessage(e.target.value)}
+                    placeholder='e.g., "Why is the response missing the email field?" or "Is this a valid OAuth flow?"'
+                    rows={4}
+                    className='w-full px-3 py-2 bg-[#0f0f1a] border border-[#2d2d44] rounded text-white text-sm resize-none focus:outline-none ai-focus'
+                    autoFocus
+                  />
+                  <p className='text-xs text-gray-500'>Full request &amp; response details are automatically included in the prompt.</p>
+                </div>
+              )}
+              <div className='flex gap-2 justify-end pt-1'>
                 <button
-                  onClick={() => { setBugReportPrompt(false); setBugNote(''); }}
+                  onClick={() => { setPanelOpen(false); setSelectedSnippet(null); setBugNote(''); setCustomChatMessage(''); }}
                   className='px-4 py-2 text-sm bg-[#0f0f1a] text-gray-300 border border-[#2d2d44] rounded hover:bg-[#1a1a2e] transition-colors'
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleGenerateBugReport(bugNote || 'The response is not in the expected format.')}
-                  className='px-4 py-2 text-sm ai-btn-solid rounded transition-colors flex items-center gap-2'
+                  onClick={handleAsk}
+                  disabled={!selectedSnippet || (selectedSnippet === 'customchat' && !customChatMessage.trim())}
+                  className='px-4 py-2 text-sm ai-btn-solid rounded transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed'
                 >
-                  <Bug size={14} />
-                  Generate Report
+                  <Sparkles size={14} />
+                  Ask
                 </button>
               </div>
             </div>
@@ -866,6 +1001,8 @@ export function AIResponseToolbar({ request, response }: AIResponseToolbarProps)
             ? `api-docs-${request.method.toLowerCase()}-${request.url.replace(/[^a-z0-9]/gi, '-').slice(0, 40)}.md`
             : modal.feature === 'bugreport'
             ? `bug-report-${request.method.toLowerCase()}-${request.url.replace(/[^a-z0-9]/gi, '-').slice(0, 40)}.md`
+            : modal.feature === 'customchat'
+            ? `ai-chat-${request.method.toLowerCase()}-${request.url.replace(/[^a-z0-9]/gi, '-').slice(0, 40)}.md`
             : `ai-explanation.md`
         }
         onCreateJira={modal.feature === 'bugreport' && jiraConfigured ? handleCreateJiraBug : undefined}
