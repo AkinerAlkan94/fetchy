@@ -72,6 +72,24 @@ describe('replaceVariables', () => {
     expect(replaceVariables('<<host>>', collVars, envVars)).toBe('prod.api.com');
   });
 
+  it('empty collection variable does not shadow a non-empty environment variable', () => {
+    const collVars = [makeVar('tenant_id', '')];
+    const envVars = [makeVar('tenant_id', 'my-tenant')];
+    expect(replaceVariables('<<tenant_id>>.example.com', collVars, envVars)).toBe('my-tenant.example.com');
+  });
+
+  it('empty collection variable does not shadow env var set via currentValue', () => {
+    const collVars = [makeVar('region', '', { initialValue: '', currentValue: '' })];
+    const envVars = [makeVar('region', 'eu1', { currentValue: 'eu1' })];
+    expect(replaceVariables('https://host.<<region>>.sws.siemens.com', collVars, envVars)).toBe('https://host.eu1.sws.siemens.com');
+  });
+
+  it('non-empty collection variable still overrides env variable', () => {
+    const collVars = [makeVar('host', 'coll.api.com')];
+    const envVars = [makeVar('host', 'env.api.com')];
+    expect(replaceVariables('<<host>>', collVars, envVars)).toBe('coll.api.com');
+  });
+
   // currentValue / value / initialValue priority
   it('prefers currentValue over value', () => {
     const vars = [makeVar('key', 'base', { currentValue: 'current' })];

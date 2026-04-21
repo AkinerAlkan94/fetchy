@@ -32,9 +32,14 @@ export const replaceVariables = (
   }
 
   // Add collection variables (will override env vars with same key)
+  // Only override when the collection variable has a non-empty effective value so that
+  // empty collection variables (e.g. imported Postman defaults) don't shadow real env values.
   for (const variable of variables) {
     if (variable.enabled) {
-      variableMap.set(variable.key, getEffectiveValue(variable));
+      const effectiveValue = getEffectiveValue(variable);
+      if (effectiveValue !== '' || !variableMap.has(variable.key)) {
+        variableMap.set(variable.key, effectiveValue);
+      }
     }
   }
 

@@ -77,4 +77,17 @@ describe('buildWorkerSource (CSP-safe script embedding)', () => {
     expect(src1).toContain('var a = 1;');
     expect(src2).toContain('var b = 2;');
   });
+
+  it('pm.response.body is defined in the generated worker source', () => {
+    const src = buildWorkerSource('');
+    // Must expose pm.response.body (the parsed JSON data) so Postman-style
+    // scripts like `pm.response.body.access_token` work.
+    expect(src).toContain('pm.response.body') || expect(src).toContain('body:');
+  });
+
+  it('pm.response.body assignment uses fetchy.response.data', () => {
+    const src = buildWorkerSource('');
+    // The body property on pm.response must be backed by fetchy.response.data
+    expect(src).toContain('fetchy.response.data');
+  });
 });

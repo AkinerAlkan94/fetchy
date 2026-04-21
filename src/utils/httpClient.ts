@@ -483,6 +483,9 @@ self.onmessage = function (e) {
         var d = fetchy.response.data;
         return typeof d === 'string' ? d : JSON.stringify(d);
       },
+      // pm.response.body — returns the parsed JSON body (object) so that
+      // Postman-style scripts like pm.response.body.access_token work.
+      body: fetchy.response ? fetchy.response.data : null,
       code: fetchy.response ? fetchy.response.status : 0,
       status: fetchy.response ? fetchy.response.status : 0,
       responseTime: 0,
