@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { HelpCircle, Settings, RefreshCw, PanelLeftClose, PanelLeftOpen, Rows, Columns, BookOpen, Star, Github, Keyboard } from 'lucide-react';
+import { HelpCircle, Settings, RefreshCw, PanelLeftClose, PanelLeftOpen, Rows, Columns, BookOpen, Star, Github, Keyboard, Info } from 'lucide-react';
 import ImportModal, { type ImportSource } from './components/ImportModal';
 import ImportRequestModal from './components/ImportRequestModal';
 import ExportModal from './components/ExportModal';
@@ -11,6 +11,7 @@ import WorkspacesModal from './components/WorkspacesModal';
 import WorkspaceDropdown from './components/WorkspaceDropdown';
 import CreateWorkspaceScreen from './components/CreateWorkspaceScreen';
 import UpdateModal from './components/UpdateModal';
+import AboutModal from './components/AboutModal';
 import UpdateBanner from './components/UpdateBanner';
 import ThemeToggle from './components/ThemeToggle';
 import Tooltip from './components/Tooltip';
@@ -50,6 +51,7 @@ function App() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'ai' | 'integrations'>('general');
   const [showWorkspacesModal, setShowWorkspacesModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [postUpdateInfo, setPostUpdateInfo] = useState<any>(null);
   const [githubStars, setGithubStars] = useState<number | null>(null);
@@ -329,6 +331,15 @@ function App() {
             <Keyboard size={18} />
           </button>
         </Tooltip>
+
+        <Tooltip content="About Fetchy">
+          <button
+            onClick={() => setShowAboutModal(true)}
+            className="p-2 hover:bg-fetchy-border rounded text-fetchy-text-muted hover:text-fetchy-text"
+          >
+            <Info size={18} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Modals */}
@@ -377,6 +388,10 @@ function App() {
         <UpdateModal
           onClose={() => setShowUpdateModal(false)}
         />
+      )}
+
+      {showAboutModal && (
+        <AboutModal onClose={() => setShowAboutModal(false)} />
       )}
     </div>
   );
