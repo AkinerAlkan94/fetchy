@@ -83,7 +83,7 @@ export default function SortableCollectionItem({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span className="text-sm font-medium text-fetchy-text truncate flex-1">
+          <span className="text-sm font-medium text-fetchy-text truncate flex-1" title={collection.name}>
             {collection.name}
           </span>
         )}

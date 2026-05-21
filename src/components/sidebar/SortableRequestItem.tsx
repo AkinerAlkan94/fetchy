@@ -99,7 +99,7 @@ export default function SortableRequestItem({
           className="flex-1 px-2 py-1 text-sm bg-fetchy-bg border border-fetchy-accent rounded outline-none"
         />
       ) : (
-        <span className="text-sm text-fetchy-text truncate flex-1">{request.name}</span>
+        <span className="text-sm text-fetchy-text truncate flex-1" title={request.name}>{request.name}</span>
       )}
       <button
         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-fetchy-border rounded"
