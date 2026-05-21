@@ -84,7 +84,7 @@ export default function SortableFolderItem({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span className="text-sm text-fetchy-text truncate flex-1">{folder.name}</span>
+          <span className="text-sm text-fetchy-text truncate flex-1" title={folder.name}>{folder.name}</span>
         )}
         <button
           className="opacity-0 group-hover:opacity-100 p-1 hover:bg-fetchy-border rounded"
