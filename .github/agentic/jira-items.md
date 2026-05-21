@@ -1,6 +1,6 @@
 ## GH-72:
 **Title** - Tooltip missing for long named collections
-**Status:** TESTED
+**Status:** PUSHED
 **Link:** https://github.com/akineralkan/fetchy/issues/72
 **Description:** When hovering over a long-named collection in the sidebar, a tooltip should show the full name of the collection, but it is not currently displaying.
 **Steps to Reproduce:** Hover over a long-named collection in the sidebar.
